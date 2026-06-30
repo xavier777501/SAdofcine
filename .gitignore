@@ -1,0 +1,54 @@
+# ============================================
+# SAD OFFICINE — Git Ignore (racine du monorepo)
+# ============================================
+
+# --- Backend Python ---
+backend/venv/
+backend/.venv/
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/__pycache__/
+backend/**/*.py[cod]
+backend/**/*.egg-info/
+backend/dist/
+backend/build/
+backend/uploads/
+
+# --- Frontend Node.js ---
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Base de données locale ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Fichiers temporaires ---
+*.tmp
+*.temp
+*.cache
+
+# --- Fichiers uploadés (sauf référence) ---
+*.csv
+*.xlsx
+!SAD_OFFICINE_REFERENCE_DEVELOPPEUR.xlsx
