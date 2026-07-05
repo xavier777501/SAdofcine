@@ -4,7 +4,7 @@ from typing import Optional
 class OfficineCreate(BaseModel):
     nom: str
 
-class UserCreate(BaseModel):
+class SetupData(BaseModel):
     email: EmailStr
     password: str
     officine: OfficineCreate
@@ -12,6 +12,10 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 
 class Token(BaseModel):
     access_token: str

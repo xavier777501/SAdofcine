@@ -1,13 +1,27 @@
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
-import Register from './pages/Register'
+import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
 import NotFound from './pages/NotFound'
 import ProtectedRoute from './components/ProtectedRoute'
-import { isAuthenticated } from './services/auth'
+import { isAuthenticated, checkIsSetup } from './services/auth'
 
 function Home() {
-  return <Navigate to={isAuthenticated() ? '/dashboard' : '/login'} replace />
+  const [target, setTarget] = useState(null)
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      setTarget('/dashboard')
+      return
+    }
+    checkIsSetup()
+      .then(({ configured }) => setTarget(configured ? '/login' : '/setup'))
+      .catch(() => setTarget('/login'))
+  }, [])
+
+  if (!target) return null
+  return <Navigate to={target} replace />
 }
 
 export default function App() {
@@ -15,8 +29,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/setup" element={<Setup />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
         <Route
           path="/dashboard"
           element={

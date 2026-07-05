@@ -11,12 +11,18 @@ export function getErrorMessage(error, fallback = 'Une erreur est survenue. Rée
   return typeof detail === 'string' ? detail : fallback
 }
 
-export async function register({ email, password, officineNom }) {
-  const { data } = await api.post('/auth/register', {
+export async function checkIsSetup() {
+  const { data } = await api.get('/auth/is-setup')
+  return data
+}
+
+export async function setup({ email, password, officineNom }) {
+  const { data } = await api.post('/auth/setup', {
     email,
     password,
     officine: { nom: officineNom },
   })
+  storeSession(data.access_token, email)
   return data
 }
 
@@ -32,4 +38,12 @@ export async function logout() {
   } finally {
     clearSession()
   }
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  const { data } = await api.patch('/auth/me/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+  return data
 }

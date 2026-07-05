@@ -1,7 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.database import Base, engine
 from app.api.routes.auth import router as auth_router
+from app.api.routes.imports import router as imports_router
+import app.models.officine        # noqa: F401
+import app.models.user            # noqa: F401
+import app.models.reference       # noqa: F401
+import app.models.vente_mensuelle # noqa: F401
+import app.models.import_log      # noqa: F401
+import app.models.column_mapping  # noqa: F401
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -11,7 +19,6 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configuration CORS (pour que le frontend React puisse parler au backend)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL, "http://localhost:5173"],
@@ -20,8 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enregistrement des routes
+@app.on_event("startup")
+def startup():
+    # Crée les tables automatiquement au démarrage (SQLite local, pas besoin d'alembic upgrade)
+    Base.metadata.create_all(bind=engine)
+
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(imports_router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def read_root():
