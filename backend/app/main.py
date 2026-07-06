@@ -4,12 +4,14 @@ from app.core.config import settings
 from app.core.database import Base, engine
 from app.api.routes.auth import router as auth_router
 from app.api.routes.imports import router as imports_router
-import app.models.officine        # noqa: F401
-import app.models.user            # noqa: F401
-import app.models.reference       # noqa: F401
-import app.models.vente_mensuelle # noqa: F401
-import app.models.import_log      # noqa: F401
-import app.models.column_mapping  # noqa: F401
+from app.api.routes.calcul import router as calcul_router
+import app.models.officine           # noqa: F401
+import app.models.user               # noqa: F401
+import app.models.reference          # noqa: F401
+import app.models.vente_mensuelle    # noqa: F401
+import app.models.import_log         # noqa: F401
+import app.models.column_mapping     # noqa: F401
+import app.models.parametre_officine # noqa: F401
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -34,6 +36,7 @@ def startup():
 
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(imports_router, prefix=settings.API_V1_PREFIX)
+app.include_router(calcul_router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def read_root():

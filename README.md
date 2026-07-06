@@ -108,7 +108,7 @@ Les stories sont regroupées par epic et triées par priorité de développement
 - Critères : toute requête SQL est filtrée par `officine_id` ; tests automatisés vérifiant qu'un token A ne peut jamais lire les données de B
 - Tâches techniques : `officine_id` en clé étrangère obligatoire sur toutes les tables (`reference`, `import`, `parametre`), revue systématique des requêtes SQLAlchemy
 
-### Epic B — Import de données (P0) 🚧 EN COURS
+### Epic B — Import de données (P0) ✅ VALIDÉE
 
 **US-B1 — Upload de fichier d'export**
 > En tant que pharmacien, je veux uploader mon fichier CSV/Excel d'export afin d'alimenter l'application sans ressaisie.

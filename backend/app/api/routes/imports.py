@@ -15,6 +15,7 @@ from app.models.officine import Officine
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
 from app.schemas.imports import ImportLogOut, MappingSave
+from app.services.calcul_officine import calculer_toutes_references
 from app.services.file_parser import (
     CHAMPS_CIBLES,
     apply_mapping,
@@ -176,6 +177,9 @@ async def import_file(
                     mois_index=i,
                     quantite=qte,
                 ))
+
+    # Recalcul automatique du moteur SAD (US-B3)
+    calculer_toutes_references(officine.id, db)
 
     import_log.statut = "succes"
     db.commit()
