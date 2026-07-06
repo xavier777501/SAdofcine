@@ -130,7 +130,13 @@ Les stories sont regroupées par epic et triées par priorité de développement
 - Critères : rapport d'import (lignes importées / lignes en erreur + raison), l'import ne bloque pas sur quelques lignes invalides
 - Tâches techniques : validation Pydantic par ligne, log des erreurs renvoyé au frontend
 
-### Epic C — Réglages (P0)
+### Epic C — Réglages (P0) ✅ VALIDÉE (simplifiée)
+
+> US-C1 implémentée en version simplifiée : délais fournisseurs globaux à l'officine
+> (`ParametreOfficine`), pas encore par circuit (`ParametreCircuit` reste à faire si
+> le besoin par circuit se confirme). US-C4 (niveaux de service par VED) non fait —
+> Z reste codé en dur dans `moteur_sad.py` (`Z_PAR_VED`).
+
 
 **US-C1 — Paramétrage des délais fournisseurs par circuit**
 > En tant que pharmacien, je veux renseigner mes délais fournisseurs (moyen/max) par circuit (local/import), afin que le moteur calcule un stock de sécurité réaliste.
@@ -152,7 +158,19 @@ Les stories sont regroupées par epic et triées par priorité de développement
 - Critères : modification du % recalcule automatiquement Z (via INV.NORMALE.STANDARD) et relance le moteur sur toutes les références concernées
 - Tâches techniques : implémentation de la fonction inverse de la loi normale standard (ex. `scipy.stats.norm.ppf`), modèle `ParametreVED` (officine_id, statut, niveau_service, z_calcule)
 
-### Epic D — Moteur de calcul (P0)
+### Epic D — Moteur de calcul (P0) ✅ VALIDÉE (US-D1 à D10, 67/67 tests moteur)
+
+> `moteur_sad.py` + `calcul_officine.py` implémentent US-D1 à D8, déclenchés
+> automatiquement après chaque import (`POST /api/v1/calcul/lancer`) et testés
+> (`test_moteur_sad.py`, 67/67). US-D9 et US-D10 ajoutés (`routes/references.py`) :
+> `PATCH /references/{id}/ved` (limité aux classes A/B, sinon 422) et
+> `PATCH /references/{id}/risque-fournisseur` (entier ≥ 0), chacun relançant le
+> moteur sur toute l'officine après modification. `GET /references` ajouté aussi,
+> pour lister/tester — ce n'est qu'une liste brute (pas de KPIs agrégés, pas de
+> texte de décision), donc Epic E (US-E1 à E4) reste entièrement à faire.
+> Testé manuellement de bout en bout (rejet classe C, rejet valeur VED invalide,
+> acceptation classe A/B, interaction correcte avec la neutralisation US-D8 :
+> une référence Non-moving + VED=Vital passe bien à qté=1).
 
 **US-D1 — Calcul CMM et CMMax**
 > En tant que système, je dois calculer la CMM et le CMMax de chaque référence à partir des 12 derniers mois de ventes, en excluant les valeurs négatives.
@@ -253,12 +271,12 @@ Les stories sont regroupées par epic et triées par priorité de développement
 
 ## 9. Ordre de développement suggéré (sprints)
 
-1. **Sprint 0** — Setup projet (FastAPI + SQLAlchemy + Alembic + PostgreSQL, React + Vite, CI de base) + Epic A (auth/comptes)
-2. **Sprint 1** — Epic B (import + mappage de colonnes) + modèle de données complet (section 5 du cahier des charges)
-3. **Sprint 2** — Epic D (moteur de calcul complet) + Epic G1 (tests de non-régression sur le fichier de référence) — **point de validation critique avant de continuer**
-4. **Sprint 3** — Epic C (réglages) + Epic D9/D10 (VED, risque fournisseur)
-5. **Sprint 4** — Epic E (tableau de pilotage + export)
-6. **Sprint 5** — Epic F (fiche référence) + polish UI/UX non-technique + tests end-to-end
+1. **Sprint 0** — ✅ Setup projet (FastAPI + SQLAlchemy + Alembic + SQLite, React + Vite) + Epic A (auth/comptes)
+2. **Sprint 1** — ✅ Epic B (import + mappage de colonnes) + modèle de données complet (section 5 du cahier des charges)
+3. **Sprint 2** — ✅ Epic D complet (US-D1 à D10) + Epic G1 (67 tests de non-régression) + `GET /references` pour lister/tester
+4. **Sprint 3** — ✅ Epic C fait (simplifié — délais globaux, pas par circuit ; niveaux de service VED toujours codés en dur)
+5. **Sprint 4** — ⬜ Epic E (tableau de pilotage + export) — `GET /references` existe déjà comme brique de base, mais KPIs agrégés, tri/filtre dédié et texte de décision (US-E1 à E3) restent à faire
+6. **Sprint 5** — ⬜ Epic F (fiche référence) + polish UI/UX non-technique + tests end-to-end
 
 ---
 

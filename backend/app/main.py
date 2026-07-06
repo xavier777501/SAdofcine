@@ -5,6 +5,8 @@ from app.core.database import Base, engine
 from app.api.routes.auth import router as auth_router
 from app.api.routes.imports import router as imports_router
 from app.api.routes.calcul import router as calcul_router
+from app.api.routes.parametres import router as parametres_router
+from app.api.routes.references import router as references_router
 import app.models.officine           # noqa: F401
 import app.models.user               # noqa: F401
 import app.models.reference          # noqa: F401
@@ -37,6 +39,8 @@ def startup():
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(imports_router, prefix=settings.API_V1_PREFIX)
 app.include_router(calcul_router, prefix=settings.API_V1_PREFIX)
+app.include_router(parametres_router, prefix=settings.API_V1_PREFIX)
+app.include_router(references_router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def read_root():

@@ -9,6 +9,7 @@ const NIVEAUX_ECRAN = {
   '/login': 1,
   '/dashboard': 2,
   '/import': 3,
+  '/reglages': 3,
 }
 
 function niveauDe(pathname) {

@@ -15,9 +15,9 @@ export default function FormField({ label, id, error, hint, type, ...inputProps 
           id={id}
           name={id}
           type={inputType}
-          className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-slate-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand ${
+          className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-slate-100 shadow-xs transition-shadow focus:outline-none focus:border-brand focus:shadow-[0_0_0_4px_var(--color-brand-light)] ${
             isPassword ? 'pr-16' : ''
-          } ${error ? 'border-danger' : 'border-slate-300 dark:border-slate-600'}`}
+          } ${error ? 'border-danger focus:shadow-[0_0_0_4px_var(--color-danger-light)]' : 'border-slate-300 dark:border-slate-600'}`}
           aria-invalid={Boolean(error)}
           {...inputProps}
         />

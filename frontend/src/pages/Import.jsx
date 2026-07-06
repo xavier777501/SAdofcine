@@ -5,6 +5,7 @@ import Logo from '../components/Logo'
 import ThemeToggle from '../components/ThemeToggle'
 import { getErrorMessage } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
+import { lancerCalcul } from '../services/calcul'
 import {
   previewImport,
   getMapping,
@@ -43,6 +44,7 @@ export default function Import() {
   const [champsCibles, setChampsCibles] = useState([])
   const [mapping, setMappingState] = useState({})
   const [importResult, setImportResult] = useState(null)
+  const [calculResult, setCalculResult] = useState(null)
   const [showErreurs, setShowErreurs] = useState(false)
   const [history, setHistory] = useState([])
   const [error, setError] = useState('')
@@ -127,6 +129,14 @@ export default function Import() {
       const result = await runImport(file)
       setImportResult(result)
       setShowErreurs(false)
+
+      try {
+        const calcul = await lancerCalcul()
+        setCalculResult(calcul)
+      } catch {
+        setCalculResult(null)
+      }
+
       setImporting(false)
       setStep(3)
       loadHistory()
@@ -143,6 +153,7 @@ export default function Import() {
     setFile(null)
     setColonnes([])
     setImportResult(null)
+    setCalculResult(null)
     setImporting(false)
     setAutoMapped(false)
     setChampsARevoir([])
@@ -254,7 +265,7 @@ export default function Import() {
               Glissez-déposez votre fichier ici, ou choisissez-le manuellement.
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Formats acceptés : .xlsx, .xls, .csv</p>
-            <label className="tg-tap inline-block rounded-lg bg-brand px-4 py-2.5 font-semibold text-white cursor-pointer transition hover:bg-brand-dark">
+            <label className="tg-tap inline-block rounded-lg bg-brand-gradient px-4 py-2.5 font-semibold text-white shadow-sm cursor-pointer transition-all hover:shadow-brand hover:-translate-y-0.5">
               {loadingStep ? 'Lecture en cours…' : 'Choisir un fichier'}
               <input
                 type="file"
@@ -320,7 +331,7 @@ export default function Import() {
               <button
                 onClick={handleSaveMappingAndImport}
                 disabled={loadingStep || mappingIncomplete()}
-                className="tg-tap rounded-lg bg-brand px-4 py-2.5 font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+                className="tg-tap rounded-lg bg-brand-gradient px-4 py-2.5 font-semibold text-white shadow-sm transition-all hover:shadow-brand hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
               >
                 {loadingStep ? 'Import en cours…' : "Sauvegarder le mappage et lancer l'import"}
               </button>
@@ -343,6 +354,12 @@ export default function Import() {
                 <p className="text-xs text-orange-600 dark:text-orange-400">lignes en erreur</p>
               </div>
             </div>
+
+            {calculResult && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {calculResult.nb_references} références recalculées — {calculResult.nb_a_commander} à commander
+              </p>
+            )}
 
             {importResult.nb_lignes_erreur > 0 && (
               <div>

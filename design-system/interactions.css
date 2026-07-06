@@ -1,0 +1,66 @@
+/**
+ * ============================================================
+ * DESIGN BOOTSTRAP — Interactions
+ * ============================================================
+ * Micro-interactions "à la Telegram", validées sur StockAid :
+ * - feedback tactile élastique sur les éléments cliquables (.tg-tap)
+ * - transition circulaire de changement de thème
+ * - glissement directionnel entre pages (nécessite React Router v6.4+/v7
+ *   avec createBrowserRouter + navigate(path, { viewTransition: true }) —
+ *   voir services/pageTransition.js dans le projet StockAid pour la
+ *   détection de direction avant/arrière, à adapter par projet)
+ * ============================================================
+ */
+
+/* Si Tailwind v4 : active le mode sombre piloté par classe/attribut plutôt
+   que par la seule préférence système (à mettre dans le fichier CSS qui
+   importe tokens.css, juste après `@import "tailwindcss"`) :
+   @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, .dark, .dark *));
+*/
+
+.tg-tap {
+  transition: transform var(--duration-slow, 380ms) var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+.tg-tap:active {
+  transform: scale(0.96);
+  transition-duration: 100ms;
+}
+
+/* ── Transition de thème (cercle) ─────────────────────────── */
+html[data-vt='theme']::view-transition-old(root),
+html[data-vt='theme']::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-vt='theme']::view-transition-old(root) { z-index: 1; }
+html[data-vt='theme']::view-transition-new(root) { z-index: 2; }
+
+/* ── Transition de page (glissement directionnel) ─────────── */
+html[data-vt='page']::view-transition-old(root),
+html[data-vt='page']::view-transition-new(root) {
+  animation-duration: var(--duration-slow, 320ms);
+  animation-timing-function: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+html[data-vt='page'][data-nav-direction='avant']::view-transition-old(root) {
+  animation-name: bootstrap-slide-out-left;
+  z-index: 1;
+}
+html[data-vt='page'][data-nav-direction='avant']::view-transition-new(root) {
+  animation-name: bootstrap-slide-in-right;
+  z-index: 2;
+}
+html[data-vt='page'][data-nav-direction='arriere']::view-transition-old(root) {
+  animation-name: bootstrap-slide-out-right;
+  z-index: 2;
+}
+html[data-vt='page'][data-nav-direction='arriere']::view-transition-new(root) {
+  animation-name: bootstrap-slide-in-left;
+  z-index: 1;
+}
+
+@keyframes bootstrap-slide-out-left { to { transform: translateX(-25%); opacity: 0.5; } }
+@keyframes bootstrap-slide-in-right { from { transform: translateX(100%); } }
+@keyframes bootstrap-slide-out-right { to { transform: translateX(100%); } }
+@keyframes bootstrap-slide-in-left { from { transform: translateX(-25%); opacity: 0.5; } }

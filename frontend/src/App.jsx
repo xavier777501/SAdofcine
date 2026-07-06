@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
 import Import from './pages/Import'
+import Reglages from './pages/Reglages'
 import NotFound from './pages/NotFound'
 import ProtectedRoute from './components/ProtectedRoute'
 import { isAuthenticated, checkIsSetup } from './services/auth'
@@ -42,6 +43,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Import />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/reglages',
+    element: (
+      <ProtectedRoute>
+        <Reglages />
       </ProtectedRoute>
     ),
   },
