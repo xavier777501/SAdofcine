@@ -1,6 +1,6 @@
 import api from './api'
 
-const UPLOAD_TIMEOUT_MS = 60000
+const UPLOAD_TIMEOUT_MS = 300000 // 5 min — un import de ~5000 lignes peut prendre 2-3 min
 
 export async function previewImport(file) {
   const formData = new FormData()

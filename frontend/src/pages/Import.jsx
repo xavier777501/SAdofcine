@@ -45,6 +45,7 @@ export default function Import() {
   const [history, setHistory] = useState([])
   const [error, setError] = useState('')
   const [loadingStep, setLoadingStep] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [autoMapped, setAutoMapped] = useState(false)
   const [champsARevoir, setChampsARevoir] = useState([])
 
@@ -120,12 +121,15 @@ export default function Import() {
     setLoadingStep(true)
     try {
       await saveMapping(mapping)
+      setImporting(true)
       const result = await runImport(file)
       setImportResult(result)
       setShowErreurs(false)
+      setImporting(false)
       setStep(3)
       loadHistory()
     } catch (err) {
+      setImporting(false)
       setError(getErrorMessage(err, "Impossible de lancer l'import."))
     } finally {
       setLoadingStep(false)
@@ -137,6 +141,7 @@ export default function Import() {
     setFile(null)
     setColonnes([])
     setImportResult(null)
+    setImporting(false)
     setAutoMapped(false)
     setChampsARevoir([])
     setError('')
@@ -165,13 +170,65 @@ export default function Import() {
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Importer des données</h1>
           <p className="mt-1 text-slate-500 text-sm">
-            Étape {step} sur 3 — {step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}
+            {importing
+              ? 'Import en cours — traitement des données…'
+              : `Étape ${step} sur 3 — ${step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}`}
           </p>
         </div>
 
         <ErrorBanner message={error} />
 
-        {step === 1 && (
+        {importing && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 flex flex-col items-center gap-6 text-center">
+            <div className="relative w-16 h-16">
+              <svg className="w-16 h-16 -rotate-90 animate-[spin_2s_linear_infinite]" viewBox="0 0 64 64">
+                <circle
+                  cx="32" cy="32" r="26"
+                  fill="none" stroke="#e2e8f0" strokeWidth="6"
+                />
+                <circle
+                  cx="32" cy="32" r="26"
+                  fill="none" stroke="currentColor" strokeWidth="6"
+                  strokeDasharray="163.36"
+                  strokeDashoffset="40.84"
+                  strokeLinecap="round"
+                  className="text-brand"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="text-base font-semibold text-slate-900">Import en cours…</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {file?.name && <span className="font-medium text-slate-700">{file.name}</span>}
+              </p>
+              <p className="text-xs text-slate-400 mt-3 max-w-xs">
+                Le traitement des lignes peut prendre quelques minutes pour un fichier volumineux.
+                Ne fermez pas cette fenêtre.
+              </p>
+            </div>
+            <div className="w-full max-w-xs">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand rounded-full"
+                  style={{
+                    animation: 'progress-fill 120s cubic-bezier(0.1, 0.4, 0.5, 1) forwards',
+                  }}
+                />
+              </div>
+            </div>
+            <style>{`
+              @keyframes progress-fill {
+                0%   { width: 0%; }
+                20%  { width: 30%; }
+                50%  { width: 55%; }
+                80%  { width: 80%; }
+                100% { width: 92%; }
+              }
+            `}</style>
+          </div>
+        )}
+
+        {!importing && step === 1 && (
           <div
             onDragOver={(e) => {
               e.preventDefault()
@@ -200,7 +257,7 @@ export default function Import() {
           </div>
         )}
 
-        {step === 2 && (
+        {!importing && step === 2 && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
             <p className="text-sm text-slate-600">
               Fichier : <span className="font-medium text-slate-900">{file?.name}</span>
@@ -259,7 +316,7 @@ export default function Import() {
           </div>
         )}
 
-        {step === 3 && importResult && (
+        {!importing && step === 3 && importResult && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
             <p className="text-sm text-slate-600">
               Fichier : <span className="font-medium text-slate-900">{importResult.nom_fichier}</span>
