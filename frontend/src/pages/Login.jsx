@@ -5,6 +5,7 @@ import FormField from '../components/FormField'
 import ErrorBanner from '../components/ErrorBanner'
 import SubmitButton from '../components/SubmitButton'
 import { login, checkIsSetup, getErrorMessage } from '../services/auth'
+import { marquerDirection } from '../services/pageTransition'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -21,7 +22,8 @@ export default function Login() {
     setLoading(true)
     try {
       await login({ email, password })
-      navigate('/dashboard', { replace: true })
+      marquerDirection('/login', '/dashboard')
+      navigate('/dashboard', { replace: true, viewTransition: true })
     } catch (err) {
       const { configured } = await checkIsSetup().catch(() => ({ configured: true }))
       if (!configured) {
@@ -61,7 +63,9 @@ export default function Login() {
       {notConfigured && (
         <Link
           to="/setup"
-          className="mt-4 block w-full rounded-lg border border-brand px-4 py-2.5 text-center font-semibold text-brand transition hover:bg-brand-light"
+          viewTransition
+          onClick={() => marquerDirection('/login', '/setup')}
+          className="tg-tap mt-4 block w-full rounded-lg border border-brand px-4 py-2.5 text-center font-semibold text-brand transition hover:bg-brand-light dark:hover:bg-brand/10"
         >
           Créer un compte
         </Link>

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-surface: #f8f9fa;
   --color-brand: #09a57e;
@@ -23,7 +25,96 @@ body {
   margin: 0;
 }
 
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 .brand-name {
   font-family: 'Pacifico', cursive;
   font-weight: 400;
+}
+
+/* Feedback tactile "à la Telegram" sur les éléments cliquables : légère
+   compression au clic, rebond élastique au relâchement. */
+.tg-tap {
+  transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tg-tap:active {
+  transform: scale(0.96);
+  transition-duration: 100ms;
+}
+
+/* ============================================================
+   Transitions "à la Telegram" via la View Transitions API.
+   Deux usages distincts, distingués par html[data-vt] :
+   - "theme"  → cercle qui révèle le nouveau thème (ThemeToggle.jsx)
+   - "page"   → glissement horizontal directionnel entre écrans
+                (navigate(..., { viewTransition: true }), voir
+                services/pageTransition.js pour la direction)
+   ============================================================ */
+
+html[data-vt='theme']::view-transition-old(root),
+html[data-vt='theme']::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-vt='theme']::view-transition-old(root) {
+  z-index: 1;
+}
+
+html[data-vt='theme']::view-transition-new(root) {
+  z-index: 2;
+}
+
+html[data-vt='page']::view-transition-old(root),
+html[data-vt='page']::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+
+html[data-vt='page'][data-nav-direction='avant']::view-transition-old(root) {
+  animation-name: tg-slide-out-left;
+  z-index: 1;
+}
+html[data-vt='page'][data-nav-direction='avant']::view-transition-new(root) {
+  animation-name: tg-slide-in-right;
+  z-index: 2;
+}
+html[data-vt='page'][data-nav-direction='arriere']::view-transition-old(root) {
+  animation-name: tg-slide-out-right;
+  z-index: 2;
+}
+html[data-vt='page'][data-nav-direction='arriere']::view-transition-new(root) {
+  animation-name: tg-slide-in-left;
+  z-index: 1;
+}
+
+@keyframes tg-slide-out-left {
+  to {
+    transform: translateX(-25%);
+    opacity: 0.5;
+  }
+}
+@keyframes tg-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes tg-slide-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes tg-slide-in-left {
+  from {
+    transform: translateX(-25%);
+    opacity: 0.5;
+  }
 }

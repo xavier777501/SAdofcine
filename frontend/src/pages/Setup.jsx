@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo'
+import ThemeToggle from '../components/ThemeToggle'
 import FormField from '../components/FormField'
 import ErrorBanner from '../components/ErrorBanner'
 import SubmitButton from '../components/SubmitButton'
 import { setup, getErrorMessage } from '../services/auth'
+import { marquerDirection } from '../services/pageTransition'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -40,7 +42,8 @@ export default function Setup() {
     setLoading(true)
     try {
       await setup(form)
-      navigate('/dashboard', { replace: true })
+      marquerDirection('/setup', '/dashboard')
+      navigate('/dashboard', { replace: true, viewTransition: true })
     } catch (err) {
       setError(getErrorMessage(err, 'Impossible de configurer l\'application. Réessayez.'))
     } finally {
@@ -49,14 +52,15 @@ export default function Setup() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col items-center justify-center px-4 py-10">
+    <div className="min-h-screen relative bg-surface dark:bg-slate-900 flex flex-col items-center justify-center px-4 py-10">
+      <ThemeToggle className="absolute top-4 right-4" />
       <div className="text-center mb-6">
         <Logo className="h-14 w-14 mx-auto mb-3 rounded-xl shadow-md" />
         <h1 className="brand-name text-4xl text-brand">StockAid</h1>
       </div>
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
-        <h2 className="text-2xl font-semibold text-slate-900 text-center mb-1">Créer un compte</h2>
-        <p className="text-sm text-slate-500 text-center mb-6">
+      <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8">
+        <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 text-center mb-1">Créer un compte</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
           C'est rapide et simple — cette étape n'apparaît qu'une seule fois.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -93,7 +97,7 @@ export default function Setup() {
             onChange={update('password')}
             error={fieldErrors.password}
           />
-          <hr className="border-slate-200" />
+          <hr className="border-slate-200 dark:border-slate-700" />
           <SubmitButton loading={loading}>Créer un compte</SubmitButton>
         </form>
       </div>

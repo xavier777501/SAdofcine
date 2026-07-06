@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ErrorBanner from '../components/ErrorBanner'
 import Logo from '../components/Logo'
+import ThemeToggle from '../components/ThemeToggle'
 import { getErrorMessage } from '../services/auth'
+import { marquerDirection } from '../services/pageTransition'
 import {
   previewImport,
   getMapping,
@@ -16,9 +18,9 @@ import {
 } from '../services/imports'
 
 const STATUT_STYLES = {
-  succes: 'bg-brand-light text-brand-dark border-brand/30',
-  en_cours: 'bg-info-light text-info border-info/30',
-  erreur: 'bg-danger-light text-danger border-danger/30',
+  succes: 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand border-brand/30',
+  en_cours: 'bg-info-light dark:bg-info/10 text-info border-info/30',
+  erreur: 'bg-danger-light dark:bg-danger/10 text-danger border-danger/30',
 }
 
 function formatDate(iso) {
@@ -147,24 +149,30 @@ export default function Import() {
     : []
 
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-surface dark:bg-slate-900">
+      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Logo className="h-9 w-9 rounded-lg" />
-          <p className="brand-name text-lg leading-none text-slate-900">StockAid</p>
+          <p className="brand-name text-lg leading-none text-slate-900 dark:text-slate-100">StockAid</p>
         </div>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="rounded-lg border border-slate-300 text-slate-600 px-4 py-2 text-sm font-medium hover:bg-slate-50"
-        >
-          ← Retour au tableau de bord
-        </button>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <button
+            onClick={() => {
+              marquerDirection('/import', '/dashboard')
+              navigate('/dashboard', { viewTransition: true })
+            }}
+            className="tg-tap rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700"
+          >
+            ← Retour au tableau de bord
+          </button>
+        </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Importer des données</h1>
-          <p className="mt-1 text-slate-500 text-sm">
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Importer des données</h1>
+          <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
             Étape {step} sur 3 — {step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}
           </p>
         </div>
@@ -180,14 +188,16 @@ export default function Import() {
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
             className={`rounded-2xl border-2 border-dashed p-12 text-center transition ${
-              dragging ? 'border-brand bg-brand-light' : 'border-slate-300 bg-white'
+              dragging
+                ? 'border-brand bg-brand-light dark:bg-brand/10'
+                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
             }`}
           >
-            <p className="text-slate-600 mb-4">
+            <p className="text-slate-600 dark:text-slate-300 mb-4">
               Glissez-déposez votre fichier ici, ou choisissez-le manuellement.
             </p>
-            <p className="text-xs text-slate-400 mb-4">Formats acceptés : .xlsx, .xls, .csv</p>
-            <label className="inline-block rounded-lg bg-brand px-4 py-2.5 font-semibold text-white cursor-pointer transition hover:bg-brand-dark">
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Formats acceptés : .xlsx, .xls, .csv</p>
+            <label className="tg-tap inline-block rounded-lg bg-brand px-4 py-2.5 font-semibold text-white cursor-pointer transition hover:bg-brand-dark">
               {loadingStep ? 'Lecture en cours…' : 'Choisir un fichier'}
               <input
                 type="file"
@@ -201,17 +211,17 @@ export default function Import() {
         )}
 
         {step === 2 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
-            <p className="text-sm text-slate-600">
-              Fichier : <span className="font-medium text-slate-900">{file?.name}</span>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-5">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Fichier : <span className="font-medium text-slate-900 dark:text-slate-100">{file?.name}</span>
             </p>
             {autoMapped && (
-              <p className="rounded-lg bg-info-light border border-info/30 text-info text-sm px-4 py-3">
+              <p className="rounded-lg bg-info-light dark:bg-info/10 border border-info/30 text-info text-sm px-4 py-3">
                 Mappage détecté automatiquement à partir des noms de colonnes — vérifiez et corrigez si besoin.
               </p>
             )}
             {champsARevoir.length > 0 && (
-              <p className="rounded-lg bg-orange-50 border border-orange-300 text-orange-700 text-sm px-4 py-3">
+              <p className="rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-300 dark:border-orange-500/40 text-orange-700 dark:text-orange-400 text-sm px-4 py-3">
                 Les colonnes de ce fichier ont changé depuis le dernier import (ex : les mois ont avancé).
                 Vérifiez les champs surlignés ci-dessous — les autres ont été conservés tels quels.
               </p>
@@ -222,15 +232,17 @@ export default function Import() {
                 const aRevoir = champsARevoir.includes(champ)
                 return (
                   <div key={champ} className="flex items-center gap-3">
-                    <label className="w-64 shrink-0 text-sm font-medium text-slate-700">
+                    <label className="w-64 shrink-0 text-sm font-medium text-slate-700 dark:text-slate-300">
                       {CHAMPS_LABELS[champ] || champ}
                       {obligatoire && <span className="text-danger"> *</span>}
                     </label>
                     <select
                       value={mapping[champ] || ''}
                       onChange={(e) => updateMapping(champ, e.target.value)}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand ${
-                        aRevoir ? 'border-orange-400 bg-orange-50' : 'border-slate-300'
+                      className={`flex-1 rounded-lg border px-3 py-2 text-slate-900 dark:text-slate-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand ${
+                        aRevoir
+                          ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
                       }`}
                     >
                       <option value="">— Non mappé —</option>
@@ -245,13 +257,13 @@ export default function Import() {
               })}
             </div>
             <div className="flex items-center justify-between pt-2">
-              <button onClick={handleRestart} className="text-sm text-slate-500 hover:underline">
+              <button onClick={handleRestart} className="tg-tap text-sm text-slate-500 dark:text-slate-400 hover:underline">
                 Annuler
               </button>
               <button
                 onClick={handleSaveMappingAndImport}
                 disabled={loadingStep || mappingIncomplete()}
-                className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+                className="tg-tap rounded-lg bg-brand px-4 py-2.5 font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loadingStep ? 'Import en cours…' : "Sauvegarder le mappage et lancer l'import"}
               </button>
@@ -260,18 +272,18 @@ export default function Import() {
         )}
 
         {step === 3 && importResult && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <p className="text-sm text-slate-600">
-              Fichier : <span className="font-medium text-slate-900">{importResult.nom_fichier}</span>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Fichier : <span className="font-medium text-slate-900 dark:text-slate-100">{importResult.nom_fichier}</span>
             </p>
             <div className="flex gap-4">
-              <div className="flex-1 rounded-lg bg-brand-light border border-brand/30 px-4 py-3 text-center">
-                <p className="text-2xl font-semibold text-brand-dark">{importResult.nb_lignes_ok ?? 0}</p>
-                <p className="text-xs text-brand-dark">lignes importées</p>
+              <div className="flex-1 rounded-lg bg-brand-light dark:bg-brand/10 border border-brand/30 px-4 py-3 text-center">
+                <p className="text-2xl font-semibold text-brand-dark dark:text-brand">{importResult.nb_lignes_ok ?? 0}</p>
+                <p className="text-xs text-brand-dark dark:text-brand">lignes importées</p>
               </div>
-              <div className="flex-1 rounded-lg bg-orange-50 border border-orange-300 px-4 py-3 text-center">
-                <p className="text-2xl font-semibold text-orange-600">{importResult.nb_lignes_erreur ?? 0}</p>
-                <p className="text-xs text-orange-600">lignes en erreur</p>
+              <div className="flex-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-300 dark:border-orange-500/40 px-4 py-3 text-center">
+                <p className="text-2xl font-semibold text-orange-600 dark:text-orange-400">{importResult.nb_lignes_erreur ?? 0}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400">lignes en erreur</p>
               </div>
             </div>
 
@@ -279,14 +291,14 @@ export default function Import() {
               <div>
                 <button
                   onClick={() => setShowErreurs((prev) => !prev)}
-                  className="text-sm font-medium text-brand hover:underline"
+                  className="tg-tap text-sm font-medium text-brand hover:underline"
                 >
                   {showErreurs ? 'Masquer les erreurs' : 'Voir les erreurs'}
                 </button>
                 {showErreurs && (
                   <ul className="mt-3 space-y-1 max-h-64 overflow-y-auto text-sm">
                     {erreursDetail.map((e, i) => (
-                      <li key={i} className="rounded bg-slate-50 px-3 py-2 text-slate-600">
+                      <li key={i} className="rounded bg-slate-50 dark:bg-slate-900/60 px-3 py-2 text-slate-600 dark:text-slate-300">
                         Ligne {e.ligne} — {e.raison}
                       </li>
                     ))}
@@ -297,7 +309,7 @@ export default function Import() {
 
             <button
               onClick={handleRestart}
-              className="w-full rounded-lg border border-brand px-4 py-2.5 font-semibold text-brand transition hover:bg-brand-light"
+              className="tg-tap w-full rounded-lg border border-brand px-4 py-2.5 font-semibold text-brand transition hover:bg-brand-light dark:hover:bg-brand/10"
             >
               Importer un autre fichier
             </button>
@@ -305,14 +317,14 @@ export default function Import() {
         )}
 
         <section>
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">Historique des imports</h2>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Historique des imports</h2>
           {history.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucun import pour le moment.</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Aucun import pour le moment.</p>
           ) : (
-            <div className="overflow-x-auto bg-white rounded-xl border border-slate-200">
+            <div className="overflow-x-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-slate-500">
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
                     <th className="px-4 py-2 font-medium">Date</th>
                     <th className="px-4 py-2 font-medium">Fichier</th>
                     <th className="px-4 py-2 font-medium">Statut</th>
@@ -322,20 +334,20 @@ export default function Import() {
                 </thead>
                 <tbody>
                   {history.map((h) => (
-                    <tr key={h.id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-4 py-2 text-slate-600">{formatDate(h.created_at)}</td>
-                      <td className="px-4 py-2 text-slate-900">{h.nom_fichier}</td>
+                    <tr key={h.id} className="border-b border-slate-100 dark:border-slate-700 last:border-0">
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{formatDate(h.created_at)}</td>
+                      <td className="px-4 py-2 text-slate-900 dark:text-slate-100">{h.nom_fichier}</td>
                       <td className="px-4 py-2">
                         <span
                           className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
-                            STATUT_STYLES[h.statut] || 'bg-slate-100 text-slate-600 border-slate-300'
+                            STATUT_STYLES[h.statut] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600'
                           }`}
                         >
                           {h.statut}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-slate-600">{h.nb_lignes_ok ?? '—'}</td>
-                      <td className="px-4 py-2 text-slate-600">{h.nb_lignes_erreur ?? '—'}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.nb_lignes_ok ?? '—'}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.nb_lignes_erreur ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

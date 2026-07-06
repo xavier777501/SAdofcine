@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
@@ -25,31 +25,29 @@ function Home() {
   return <Navigate to={target} replace />
 }
 
+const router = createBrowserRouter([
+  { path: '/', element: <Home /> },
+  { path: '/setup', element: <Setup /> },
+  { path: '/login', element: <Login /> },
+  {
+    path: '/dashboard',
+    element: (
+      <ProtectedRoute>
+        <Dashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/import',
+    element: (
+      <ProtectedRoute>
+        <Import />
+      </ProtectedRoute>
+    ),
+  },
+  { path: '*', element: <NotFound /> },
+])
+
 export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/setup" element={<Setup />} />
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/import"
-          element={
-            <ProtectedRoute>
-              <Import />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
-  )
+  return <RouterProvider router={router} />
 }
