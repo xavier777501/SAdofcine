@@ -1,10 +1,14 @@
-import api, { getToken, getStoredEmail, storeSession, clearSession } from './api'
+import api, { getToken, getStoredEmail, getStoredOfficineNom, storeSession, clearSession } from './api'
 
 export const isAuthenticated = () => Boolean(getToken())
 export const getUserEmail = getStoredEmail
+export const getOfficineNom = getStoredOfficineNom
 
 export function getErrorMessage(error, fallback = 'Une erreur est survenue. Réessayez.') {
   if (!error.response) {
+    if (error.code === 'ECONNABORTED') {
+      return 'Le traitement prend plus de temps que prévu (fichier volumineux ?). Réessayez.'
+    }
     return 'Impossible de contacter le serveur. Vérifiez votre connexion.'
   }
   const detail = error.response.data?.detail
@@ -22,13 +26,13 @@ export async function setup({ email, password, officineNom }) {
     password,
     officine: { nom: officineNom },
   })
-  storeSession(data.access_token, email)
+  storeSession(data.access_token, email, data.officine_nom)
   return data
 }
 
 export async function login({ email, password }) {
   const { data } = await api.post('/auth/login', { email, password })
-  storeSession(data.access_token, email)
+  storeSession(data.access_token, email, data.officine_nom)
   return data
 }
 

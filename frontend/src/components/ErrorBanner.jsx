@@ -3,7 +3,7 @@ export default function ErrorBanner({ message }) {
   return (
     <div
       role="alert"
-      className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 text-left"
+      className="rounded-lg bg-danger-light border border-danger/30 text-danger text-sm px-4 py-3 text-left"
     >
       {message}
     </div>

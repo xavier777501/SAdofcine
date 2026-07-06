@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getUserEmail, logout } from '../services/auth'
+import { getOfficineNom, logout } from '../services/auth'
+import Logo from '../components/Logo'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -16,16 +17,19 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
-        <div>
-          <p className="font-semibold">SAD OFFICINE</p>
-          <p className="text-sm text-slate-400">{getUserEmail()}</p>
+    <div className="min-h-screen bg-surface">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Logo className="h-9 w-9 rounded-lg" />
+          <div>
+            <p className="brand-name text-lg leading-none text-slate-900">StockAid</p>
+            <p className="text-sm text-slate-500">{getOfficineNom()}</p>
+          </div>
         </div>
         <button
           onClick={handleLogout}
           disabled={loggingOut}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium hover:bg-slate-800 disabled:opacity-60"
+          className="rounded-lg border border-info text-info px-4 py-2 text-sm font-medium hover:bg-info-light disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loggingOut ? 'Déconnexion…' : 'Se déconnecter'}
         </button>
@@ -35,6 +39,12 @@ export default function Dashboard() {
         <p className="mt-2 text-slate-500">
           Importez votre premier fichier pour voir apparaître vos recommandations de commande.
         </p>
+        <button
+          onClick={() => navigate('/import')}
+          className="mt-6 rounded-lg bg-brand px-5 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
+        >
+          Importer un fichier
+        </button>
       </main>
     </div>
   )

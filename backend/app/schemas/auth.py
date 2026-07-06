@@ -20,6 +20,7 @@ class PasswordChange(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    officine_nom: str
 
 class TokenData(BaseModel):
     user_id: Optional[str] = None

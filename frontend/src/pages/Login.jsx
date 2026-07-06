@@ -1,29 +1,34 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import FormField from '../components/FormField'
 import ErrorBanner from '../components/ErrorBanner'
 import SubmitButton from '../components/SubmitButton'
-import { login, getErrorMessage } from '../services/auth'
+import { login, checkIsSetup, getErrorMessage } from '../services/auth'
 
 export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [notConfigured, setNotConfigured] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  const successMessage = ''
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    setNotConfigured(false)
     setLoading(true)
     try {
       await login({ email, password })
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      setError(getErrorMessage(err, 'Mot de passe incorrect ou email inconnu.'))
+      const { configured } = await checkIsSetup().catch(() => ({ configured: true }))
+      if (!configured) {
+        setNotConfigured(true)
+      } else {
+        setError(getErrorMessage(err, 'Mot de passe incorrect ou email inconnu.'))
+      }
     } finally {
       setLoading(false)
     }
@@ -53,6 +58,14 @@ export default function Login() {
         />
         <SubmitButton loading={loading}>Se connecter</SubmitButton>
       </form>
+      {notConfigured && (
+        <Link
+          to="/setup"
+          className="mt-4 block w-full rounded-lg border border-brand px-4 py-2.5 text-center font-semibold text-brand transition hover:bg-brand-light"
+        >
+          Créer un compte
+        </Link>
+      )}
     </AuthLayout>
   )
 }

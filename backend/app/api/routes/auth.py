@@ -44,7 +44,7 @@ def setup(data: SetupData, db: Session = Depends(get_db)):
     db.refresh(user)
 
     access_token = create_access_token(data={"sub": str(user.id), "officine_id": str(officine.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "officine_nom": officine.nom}
 
 
 @router.post("/login", response_model=Token)
@@ -53,8 +53,9 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Identifiants incorrects")
 
+    officine = db.query(Officine).filter(Officine.id == user.officine_id).first()
     access_token = create_access_token(data={"sub": str(user.id), "officine_id": str(user.officine_id)})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "officine_nom": officine.nom}
 
 
 @router.post("/logout")
