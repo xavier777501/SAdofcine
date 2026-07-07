@@ -72,6 +72,7 @@ def get_kpis(
     tresorerie = sum(r.tresorerie_liberee or 0.0 for r in refs)
 
     return KpisOut(
+        nb_references=len(refs),
         nb_rupture=nb_rupture,
         nb_critique=nb_critique,
         nb_a_commander=nb_rupture + nb_critique + nb_commander,

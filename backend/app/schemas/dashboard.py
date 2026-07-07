@@ -3,6 +3,7 @@ from typing import Optional
 
 
 class KpisOut(BaseModel):
+    nb_references: int             # total de références
     nb_rupture: int
     nb_critique: int
     nb_a_commander: int           # rupture + critique + commander
