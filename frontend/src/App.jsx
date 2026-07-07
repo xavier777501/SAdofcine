@@ -7,6 +7,7 @@ import Import from './pages/Import'
 import Reglages from './pages/Reglages'
 import NotFound from './pages/NotFound'
 import ProtectedRoute from './components/ProtectedRoute'
+import AppShell from './components/AppShell'
 import { isAuthenticated, checkIsSetup } from './services/auth'
 
 function Home() {
@@ -34,7 +35,9 @@ const router = createBrowserRouter([
     path: '/dashboard',
     element: (
       <ProtectedRoute>
-        <Dashboard />
+        <AppShell>
+          <Dashboard />
+        </AppShell>
       </ProtectedRoute>
     ),
   },
@@ -42,7 +45,9 @@ const router = createBrowserRouter([
     path: '/import',
     element: (
       <ProtectedRoute>
-        <Import />
+        <AppShell>
+          <Import />
+        </AppShell>
       </ProtectedRoute>
     ),
   },
@@ -50,7 +55,9 @@ const router = createBrowserRouter([
     path: '/reglages',
     element: (
       <ProtectedRoute>
-        <Reglages />
+        <AppShell>
+          <Reglages />
+        </AppShell>
       </ProtectedRoute>
     ),
   },

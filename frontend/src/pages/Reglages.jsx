@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import ErrorBanner from '../components/ErrorBanner'
 import FormField from '../components/FormField'
-import Logo from '../components/Logo'
 import SubmitButton from '../components/SubmitButton'
-import ThemeToggle from '../components/ThemeToggle'
 import { getErrorMessage } from '../services/auth'
-import { marquerDirection } from '../services/pageTransition'
 import { getParametres, updateParametres, CYCLE_OPTIONS } from '../services/parametres'
 
 function versFormulaire(params) {
@@ -20,7 +16,6 @@ function versFormulaire(params) {
 }
 
 export default function Reglages() {
-  const navigate = useNavigate()
   const [form, setForm] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
@@ -85,33 +80,13 @@ export default function Reglages() {
   }
 
   return (
-    <div className="min-h-screen bg-surface dark:bg-slate-900">
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Logo className="h-9 w-9 rounded-lg" />
-          <p className="brand-name text-lg leading-none text-slate-900 dark:text-slate-100">StockAid</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <button
-            onClick={() => {
-              marquerDirection('/reglages', '/dashboard')
-              navigate('/dashboard', { viewTransition: true })
-            }}
-            className="tg-tap rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700"
-          >
-            ← Retour au tableau de bord
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-6 py-10 space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Réglages</h1>
-          <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
-            Ces valeurs servent à calculer vos recommandations de commande. Elles changent rarement.
-          </p>
-        </div>
+    <div className="px-6 py-8 md:px-10 md:py-10 max-w-2xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Réglages</h1>
+        <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
+          Ces valeurs servent à calculer vos recommandations de commande. Elles changent rarement.
+        </p>
+      </div>
 
         <ErrorBanner message={error} />
         {success && (
@@ -202,7 +177,6 @@ export default function Reglages() {
             <SubmitButton loading={saving}>Enregistrer les réglages</SubmitButton>
           </form>
         )}
-      </main>
     </div>
   )
 }

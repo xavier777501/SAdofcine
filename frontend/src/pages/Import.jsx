@@ -1,42 +1,20 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import ErrorBanner from '../components/ErrorBanner'
-import Logo from '../components/Logo'
-import ThemeToggle from '../components/ThemeToggle'
+import ImportHistoryTable from '../components/ImportHistoryTable'
 import { getErrorMessage } from '../services/auth'
-import { marquerDirection } from '../services/pageTransition'
 import { lancerCalcul } from '../services/calcul'
 import {
   previewImport,
   getMapping,
   saveMapping,
   runImport,
-  getImportHistory,
   autoMatchMapping,
   revalidateMapping,
   CHAMPS_LABELS,
   CHAMPS_OBLIGATOIRES,
 } from '../services/imports'
 
-const STATUT_STYLES = {
-  succes: 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand border-brand/30',
-  en_cours: 'bg-info-light dark:bg-info/10 text-info border-info/30',
-  erreur: 'bg-danger-light dark:bg-danger/10 text-danger border-danger/30',
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export default function Import() {
-  const navigate = useNavigate()
-
   const [step, setStep] = useState(1)
   const [file, setFile] = useState(null)
   const [dragging, setDragging] = useState(false)
@@ -46,25 +24,11 @@ export default function Import() {
   const [importResult, setImportResult] = useState(null)
   const [calculResult, setCalculResult] = useState(null)
   const [showErreurs, setShowErreurs] = useState(false)
-  const [history, setHistory] = useState([])
   const [error, setError] = useState('')
   const [loadingStep, setLoadingStep] = useState(false)
   const [importing, setImporting] = useState(false)
   const [autoMapped, setAutoMapped] = useState(false)
   const [champsARevoir, setChampsARevoir] = useState([])
-
-  useEffect(() => {
-    loadHistory()
-  }, [])
-
-  async function loadHistory() {
-    try {
-      const data = await getImportHistory()
-      setHistory(data)
-    } catch {
-      // historique optionnel, on n'affiche pas d'erreur bloquante
-    }
-  }
 
   async function handleFileSelected(selectedFile) {
     if (!selectedFile) return
@@ -139,7 +103,6 @@ export default function Import() {
 
       setImporting(false)
       setStep(3)
-      loadHistory()
     } catch (err) {
       setImporting(false)
       setError(getErrorMessage(err, "Impossible de lancer l'import."))
@@ -165,30 +128,10 @@ export default function Import() {
     : []
 
   return (
-    <div className="min-h-screen bg-surface dark:bg-slate-900">
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Logo className="h-9 w-9 rounded-lg" />
-          <p className="brand-name text-lg leading-none text-slate-900 dark:text-slate-100">StockAid</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <button
-            onClick={() => {
-              marquerDirection('/import', '/dashboard')
-              navigate('/dashboard', { viewTransition: true })
-            }}
-            className="tg-tap rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700"
-          >
-            ← Retour au tableau de bord
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Importer des données</h1>
-          <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
+    <div className="px-6 py-8 md:px-10 md:py-10 max-w-3xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Importer des données</h1>
+        <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
             {importing
               ? 'Import en cours — traitement des données…'
               : `Étape ${step} sur 3 — ${step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}`}
@@ -390,46 +333,7 @@ export default function Import() {
           </div>
         )}
 
-        <section>
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Historique des imports</h2>
-          {history.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Aucun import pour le moment.</p>
-          ) : (
-            <div className="overflow-x-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
-                    <th className="px-4 py-2 font-medium">Date</th>
-                    <th className="px-4 py-2 font-medium">Fichier</th>
-                    <th className="px-4 py-2 font-medium">Statut</th>
-                    <th className="px-4 py-2 font-medium">Lignes OK</th>
-                    <th className="px-4 py-2 font-medium">Lignes erreur</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h.id} className="border-b border-slate-100 dark:border-slate-700 last:border-0">
-                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{formatDate(h.created_at)}</td>
-                      <td className="px-4 py-2 text-slate-900 dark:text-slate-100">{h.nom_fichier}</td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
-                            STATUT_STYLES[h.statut] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600'
-                          }`}
-                        >
-                          {h.statut}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.nb_lignes_ok ?? '—'}</td>
-                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.nb_lignes_erreur ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </main>
+        <ImportHistoryTable key={importResult?.id || 'aucun'} />
     </div>
   )
 }
