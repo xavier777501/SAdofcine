@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { getReferences, updateVed, updateRisque } from '../services/references'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -134,14 +134,15 @@ export default function Stock() {
   // savingId → 'ved' | 'risque' | null
   const [saving, setSaving] = useState({})
 
-  const charger = useCallback(async () => {
+  useEffect(() => {
+    let abandoned = false
     setChargement(true)
-    try { setRefs(await getReferences()) }
-    catch { setRefs([]) }
-    finally { setChargement(false) }
+    getReferences()
+      .then(data  => { if (!abandoned) setRefs(data) })
+      .catch(()   => { if (!abandoned) setRefs([]) })
+      .finally(() => { if (!abandoned) setChargement(false) })
+    return () => { abandoned = true }
   }, [])
-
-  useEffect(() => { charger() }, [charger])
 
   async function handleVedChange(ref, ved) {
     setSaving(s => ({ ...s, [ref.id]: 'ved' }))
