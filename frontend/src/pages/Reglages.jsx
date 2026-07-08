@@ -174,7 +174,9 @@ export default function Reglages() {
               />
             </div>
 
-            <SubmitButton loading={saving}>Enregistrer les réglages</SubmitButton>
+            <SubmitButton loading={saving} loadingLabel="Recalcul en cours… (peut prendre 20 s)">
+              Enregistrer les réglages
+            </SubmitButton>
           </form>
         )}
     </div>

@@ -6,7 +6,7 @@ export async function getParametres() {
 }
 
 export async function updateParametres(changes) {
-  const { data } = await api.patch('/parametres', changes)
+  const { data } = await api.patch('/parametres', changes, { timeout: 120000 })
   return data
 }
 
