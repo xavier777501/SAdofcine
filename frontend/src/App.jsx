@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
 import ListeAction from './pages/ListeAction'
+import Stock from './pages/Stock'
 import Import from './pages/Import'
 import Reglages from './pages/Reglages'
 import NotFound from './pages/NotFound'
@@ -48,6 +49,16 @@ const router = createBrowserRouter([
       <ProtectedRoute>
         <AppShell>
           <ListeAction />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/stock',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <Stock />
         </AppShell>
       </ProtectedRoute>
     ),
