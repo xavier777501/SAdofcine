@@ -33,9 +33,9 @@ const VED_OPTIONS = ['Vital', 'Essentiel', 'Désirable']
 
 // ── Cellule VED éditable ──────────────────────────────────────────────────────
 
-function VedCell({ ref: _ref, onChange, saving }) {
-  const canEdit = _ref.classe === 'A' || _ref.classe === 'B'
-  const val = _ref.ved || ''
+function VedCell({ ligne, onChange, saving }) {
+  const canEdit = ligne.classe === 'A' || ligne.classe === 'B'
+  const val = ligne.ved || ''
 
   if (!canEdit) {
     return (
@@ -322,7 +322,7 @@ export default function Stock() {
                         {/* VED éditable */}
                         <td className="px-4 py-2.5">
                           <VedCell
-                            ref={r}
+                            ligne={r}
                             saving={saving[r.id] === 'ved'}
                             onChange={ved => handleVedChange(r, ved)}
                           />
