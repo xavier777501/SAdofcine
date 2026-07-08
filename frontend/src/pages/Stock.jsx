@@ -135,13 +135,13 @@ export default function Stock() {
   const [saving, setSaving] = useState({})
 
   useEffect(() => {
-    let abandoned = false
+    const ctrl = new AbortController()
     setChargement(true)
-    getReferences()
-      .then(data  => { if (!abandoned) setRefs(data) })
-      .catch(()   => { if (!abandoned) setRefs([]) })
-      .finally(() => { if (!abandoned) setChargement(false) })
-    return () => { abandoned = true }
+    getReferences(ctrl.signal)
+      .then(data => setRefs(data))
+      .catch(() => { if (!ctrl.signal.aborted) setRefs([]) })
+      .finally(() => { if (!ctrl.signal.aborted) setChargement(false) })
+    return () => ctrl.abort()
   }, [])
 
   async function handleVedChange(ref, ved) {

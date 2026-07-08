@@ -1,6 +1,7 @@
 import api from './api'
 
-export const getReferences = () => api.get('/references').then(r => r.data)
+export const getReferences = (signal) =>
+  api.get('/references', { signal, timeout: 60000 }).then(r => r.data)
 
 export const updateVed = (id, ved) =>
   api.patch(`/references/${id}/ved`, { ved }).then(r => r.data)
