@@ -256,12 +256,27 @@ def calc_classes_abc(
         cmm = ref.get("cmm") or 0.0
         prix = ref.get("prix_cession") or 0.0
         ca = cmm * 12 * prix
-        avec_ca.append({"id": ref["id"], "ca": ca})
+        avec_ca.append({"id": ref["id"], "ca": ca, "cmm": cmm})
 
     total_ca = sum(r["ca"] for r in avec_ca)
     if total_ca <= 0:
-        # Pas de CA : tout est C
-        return {r["id"]: "C" for r in avec_ca}
+        # Pas de prix : fallback ABC par volume CMM annuel
+        total_cmm = sum(r["cmm"] for r in avec_ca)
+        if total_cmm <= 0:
+            return {r["id"]: "C" for r in avec_ca}
+        avec_ca.sort(key=lambda r: r["cmm"], reverse=True)
+        classes: dict[str, str] = {}
+        cumul = 0.0
+        for item in avec_ca:
+            ratio_avant = cumul / total_cmm
+            cumul += item["cmm"]
+            if ratio_avant < 0.80:
+                classes[item["id"]] = "A"
+            elif ratio_avant < 0.95:
+                classes[item["id"]] = "B"
+            else:
+                classes[item["id"]] = "C"
+        return classes
 
     avec_ca.sort(key=lambda r: r["ca"], reverse=True)
 
