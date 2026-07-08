@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ErrorBanner from '../components/ErrorBanner'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import { getErrorMessage } from '../services/auth'
+import { marquerDirection } from '../services/pageTransition'
 import { lancerCalcul } from '../services/calcul'
 import {
   previewImport,
@@ -15,6 +17,7 @@ import {
 } from '../services/imports'
 
 export default function Import() {
+  const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [file, setFile] = useState(null)
   const [dragging, setDragging] = useState(false)
@@ -323,6 +326,16 @@ export default function Import() {
                 )}
               </div>
             )}
+
+            <button
+              onClick={() => {
+                marquerDirection('/import', '/dashboard')
+                navigate('/dashboard', { viewTransition: true })
+              }}
+              className="tg-tap w-full rounded-lg bg-brand-gradient px-4 py-2.5 font-semibold text-white shadow-sm transition-all hover:shadow-brand hover:-translate-y-0.5"
+            >
+              Voir le tableau de bord
+            </button>
 
             <button
               onClick={handleRestart}

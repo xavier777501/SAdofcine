@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
+import ListeAction from './pages/ListeAction'
 import Import from './pages/Import'
 import Reglages from './pages/Reglages'
 import NotFound from './pages/NotFound'
@@ -37,6 +38,16 @@ const router = createBrowserRouter([
       <ProtectedRoute>
         <AppShell>
           <Dashboard />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/liste-action',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <ListeAction />
         </AppShell>
       </ProtectedRoute>
     ),

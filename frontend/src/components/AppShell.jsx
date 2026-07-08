@@ -20,6 +20,22 @@ const NAV_ITEMS = [
     ),
   },
   {
+    to: '/liste-action',
+    label: "Liste d'action",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+        <path
+          d="M9 4.5h6a1 1 0 0 1 1 1V6h1.5A1.5 1.5 0 0 1 19 7.5v11A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5v-11A1.5 1.5 0 0 1 6.5 6H8v-.5a1 1 0 0 1 1-1Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <path d="M9 11.5l1.5 1.5L14 9.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     to: '/import',
     label: 'Importer',
     icon: (
@@ -88,7 +104,7 @@ export default function AppShell({ children }) {
               viewTransition
               onClick={() => handleNavClick(item.to)}
               className={({ isActive }) =>
-                `tg-tap flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                `tg-tap flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:font-semibold ${
                   isActive
                     ? 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'

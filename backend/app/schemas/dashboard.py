@@ -19,9 +19,22 @@ class LigneActionOut(BaseModel):
     fsn: Optional[str]
     ved: Optional[str]
     stock_actuel: float
+    cmm: float                    # consommation mensuelle moyenne (ventes/mois)
+    vente_m1: float                # ventes réelles du mois le plus récent (M-1)
     statut: str
     qte_a_commander: float
     valeur_fcfa: float            # qte_a_commander × prix_cession
     texte_decision: str
+
+    model_config = {"from_attributes": False}
+
+
+class VenteM1Out(BaseModel):
+    code: str
+    designation: str
+    vente_m1: float                # quantité vendue le mois dernier
+    stock_actuel: float
+    statut: str                    # RUPTURE / CRITIQUE / COMMANDER / OK
+    qte_a_commander: float
 
     model_config = {"from_attributes": False}

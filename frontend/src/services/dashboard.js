@@ -10,6 +10,11 @@ export async function getListeAction() {
   return data
 }
 
+export async function getVentesM1() {
+  const { data } = await api.get('/dashboard/ventes-m1')
+  return data
+}
+
 export async function exportListe(format) {
   const { data } = await api.get('/dashboard/export', {
     params: { format },

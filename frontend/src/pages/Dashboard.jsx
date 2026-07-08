@@ -2,33 +2,16 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getOfficineNom } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
-import { getKpis, getListeAction, exportListe } from '../services/dashboard'
+import { getKpis } from '../services/dashboard'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import RepartitionStockDonut from '../components/RepartitionStockDonut'
+import VentesM1Table from '../components/VentesM1Table'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatFCFA(val) {
   if (!val && val !== 0) return '—'
   return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(val) + ' FCFA'
-}
-
-function formatNb(val) {
-  return new Intl.NumberFormat('fr-FR').format(val ?? 0)
-}
-
-// ── Constantes de statut ─────────────────────────────────────────────────────
-
-const STATUT_CFG = {
-  RUPTURE:   { bg: 'bg-danger-light dark:bg-danger/10',   text: 'text-danger',                    badge: 'bg-danger text-white',                        label: 'Rupture' },
-  CRITIQUE:  { bg: 'bg-orange-50 dark:bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-500 text-white',               label: 'Critique' },
-  COMMANDER: { bg: 'bg-yellow-50 dark:bg-yellow-500/10', text: 'text-yellow-700 dark:text-yellow-400', badge: 'bg-yellow-400 dark:bg-yellow-500 text-slate-900', label: 'Commander' },
-}
-
-const CLASSE_CFG = {
-  A: 'bg-brand-light text-brand-dark dark:bg-brand/10 dark:text-brand',
-  B: 'bg-info-light text-info dark:bg-info/10',
-  C: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 }
 
 // ── Sous-composants ───────────────────────────────────────────────────────────
@@ -48,80 +31,19 @@ function KpiTile({ label, value, sub, color, icon }) {
   )
 }
 
-function LigneAction({ ligne, expanded, onToggle }) {
-  const cfg = STATUT_CFG[ligne.statut] || {}
-  const classeCfg = CLASSE_CFG[ligne.classe] || CLASSE_CFG.C
-
-  return (
-    <>
-      <tr
-        className={`border-b border-slate-100 dark:border-slate-700/50 cursor-pointer transition-colors ${expanded ? cfg.bg : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}
-        onClick={onToggle}
-      >
-        <td className="px-4 py-2.5">
-          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.badge}`}>
-            {cfg.label}
-          </span>
-        </td>
-        <td className="px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-          {ligne.code}
-        </td>
-        <td className="px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 max-w-xs">
-          <span className="line-clamp-1">{ligne.designation}</span>
-        </td>
-        <td className="px-4 py-2.5 text-center">
-          {ligne.classe && (
-            <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${classeCfg}`}>
-              {ligne.classe}
-            </span>
-          )}
-        </td>
-        <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
-          {formatNb(ligne.stock_actuel)}
-        </td>
-        <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-200">
-          {formatNb(ligne.qte_a_commander)}
-        </td>
-        <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
-          {ligne.valeur_fcfa > 0 ? formatFCFA(ligne.valeur_fcfa) : '—'}
-        </td>
-        <td className="px-4 py-2.5 text-center w-8">
-          <svg viewBox="0 0 16 16" className={`w-4 h-4 text-slate-400 transition-transform duration-200 inline ${expanded ? 'rotate-180' : ''}`} fill="none">
-            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className={cfg.bg}>
-          <td colSpan={8} className="px-4 py-2.5">
-            <p className={`text-sm font-medium italic ${cfg.text}`}>{ligne.texte_decision}</p>
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
 // ── Page principale ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [kpis, setKpis] = useState(null)
-  const [liste, setListe] = useState([])
   const [chargement, setChargement] = useState(true)
-  const [exportEnCours, setExportEnCours] = useState(null)
-  const [ligneOuverte, setLigneOuverte] = useState(null)
-  const [filtreStatut, setFiltreStatut] = useState('TOUS')
 
   const charger = useCallback(async () => {
     setChargement(true)
     try {
-      const [k, l] = await Promise.all([getKpis(), getListeAction()])
-      setKpis(k)
-      setListe(l)
+      setKpis(await getKpis())
     } catch {
       setKpis(null)
-      setListe([])
     } finally {
       setChargement(false)
     }
@@ -129,18 +51,12 @@ export default function Dashboard() {
 
   useEffect(() => { charger() }, [charger])
 
-  async function handleExport(format) {
-    setExportEnCours(format)
-    try { await exportListe(format) } catch { /* silencieux */ } finally { setExportEnCours(null) }
-  }
-
   function handleImportClick() {
     marquerDirection('/dashboard', '/import')
     navigate('/import', { viewTransition: true })
   }
 
-  const aDesReferences = kpis && kpis.nb_a_commander + (kpis.nb_references ?? 0) > 0
-  const listeFiltre = filtreStatut === 'TOUS' ? liste : liste.filter(l => l.statut === filtreStatut)
+  const aDesReferences = kpis && kpis.nb_references > 0
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-6xl mx-auto space-y-6">
@@ -207,111 +123,8 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ── Liste d'action ─────────────────────────────────────────────────── */}
-      {!chargement && liste.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
-
-          {/* En-tête de section */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Liste d'action
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {liste.length} référence{liste.length > 1 ? 's' : ''} à traiter — cliquez sur une ligne pour voir le conseil
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Filtres statut */}
-              {['TOUS', 'RUPTURE', 'CRITIQUE', 'COMMANDER'].map(s => {
-                const cfg = STATUT_CFG[s]
-                const actif = filtreStatut === s
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setFiltreStatut(s)}
-                    className={`tg-tap text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
-                      actif
-                        ? s === 'TOUS'
-                          ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent'
-                          : `${cfg.badge} border-transparent`
-                        : 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {s === 'TOUS' ? 'Tous' : cfg.label}
-                    {s !== 'TOUS' && (
-                      <span className="ml-1.5 opacity-70">
-                        {liste.filter(l => l.statut === s).length}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-
-              {/* Export */}
-              <div className="flex gap-2 ml-2">
-                <button
-                  onClick={() => handleExport('xlsx')}
-                  disabled={!!exportEnCours}
-                  className="tg-tap flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand text-brand hover:bg-brand-light dark:hover:bg-brand/10 transition-colors disabled:opacity-50"
-                >
-                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden="true">
-                    <path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  {exportEnCours === 'xlsx' ? 'Export…' : 'Excel'}
-                </button>
-                <button
-                  onClick={() => handleExport('pdf')}
-                  disabled={!!exportEnCours}
-                  className="tg-tap flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-                >
-                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden="true">
-                    <path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  {exportEnCours === 'pdf' ? 'Export…' : 'PDF'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Tableau */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
-              <thead>
-                <tr className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700">
-                  <th className="px-4 py-2.5">Statut</th>
-                  <th className="px-4 py-2.5">Code</th>
-                  <th className="px-4 py-2.5">Désignation</th>
-                  <th className="px-4 py-2.5 text-center">Cl.</th>
-                  <th className="px-4 py-2.5 text-right">Stock</th>
-                  <th className="px-4 py-2.5 text-right">Qté à cmd.</th>
-                  <th className="px-4 py-2.5 text-right">Valeur</th>
-                  <th className="px-4 py-2.5 w-8"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {listeFiltre.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500 text-sm">
-                      Aucune référence pour ce filtre.
-                    </td>
-                  </tr>
-                ) : (
-                  listeFiltre.map(ligne => (
-                    <LigneAction
-                      key={ligne.id}
-                      ligne={ligne}
-                      expanded={ligneOuverte === ligne.id}
-                      onToggle={() => setLigneOuverte(prev => prev === ligne.id ? null : ligne.id)}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* ── Ventes du mois dernier, toutes références confondues ────────────── */}
+      {!chargement && aDesReferences && <VentesM1Table />}
 
       {/* ── État vide / CTA import ────────────────────────────────────────── */}
       {!chargement && (
@@ -323,10 +136,10 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 text-center md:text-left">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              {liste.length > 0 ? `Bonjour, ${getOfficineNom()} !` : 'Bienvenue sur StockAid'}
+              {aDesReferences ? `Bonjour, ${getOfficineNom()} !` : 'Bienvenue sur StockAid'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {liste.length > 0
+              {aDesReferences
                 ? 'Réimportez régulièrement pour maintenir vos recommandations à jour.'
                 : 'Importez votre premier fichier pour voir apparaître vos recommandations de commande.'}
             </p>
@@ -335,7 +148,7 @@ export default function Dashboard() {
             onClick={handleImportClick}
             className="tg-tap shrink-0 rounded-xl bg-brand-gradient px-5 py-2.5 font-semibold text-white shadow-sm transition-all hover:shadow-brand hover:-translate-y-0.5"
           >
-            {liste.length > 0 ? 'Importer un nouveau fichier' : 'Importer un fichier'}
+            {aDesReferences ? 'Importer un nouveau fichier' : 'Importer un fichier'}
           </button>
         </div>
       )}
