@@ -11,6 +11,7 @@ import {
   getMapping,
   saveMapping,
   runImport,
+  runImportCommande,
   autoMatchMapping,
   revalidateMapping,
   CHAMPS_LABELS,
@@ -20,6 +21,7 @@ import {
 export default function Import() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
+  const [typeImport, setTypeImport] = useState(null) // 'historique' | 'commande'
   const [file, setFile] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [colonnes, setColonnes] = useState([])
@@ -74,6 +76,29 @@ export default function Import() {
     }
   }
 
+  async function handleFileSelectedCommande(selectedFile) {
+    if (!selectedFile) return
+    setError('')
+    setFile(selectedFile)
+    setImporting(true)
+    try {
+      const result = await runImportCommande(selectedFile)
+      setImportResult(result)
+      setShowErreurs(false)
+      setStep(3)
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible d'importer le fichier Logpharma."))
+      setFile(null)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function handleChoixType(type) {
+    setTypeImport(type)
+    setError('')
+  }
+
   function handleDrop(e) {
     e.preventDefault()
     setDragging(false)
@@ -117,6 +142,7 @@ export default function Import() {
 
   function handleRestart() {
     setStep(1)
+    setTypeImport(null)
     setFile(null)
     setColonnes([])
     setImportResult(null)
@@ -139,7 +165,17 @@ export default function Import() {
         subtitle={
           importing
             ? 'Import en cours — traitement des données…'
-            : `Étape ${step} sur 3 — ${step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}`
+            : step === 1 && !typeImport
+              ? 'Quel type de fichier voulez-vous importer ?'
+              : step === 1 && typeImport === 'historique'
+                ? 'Étape 1 sur 3 — sélection du fichier historique mensuel'
+                : step === 1 && typeImport === 'commande'
+                  ? 'Étape 1 sur 2 — sélection du fichier Logpharma'
+                  : step === 2
+                    ? 'Étape 2 sur 3 — mappage des colonnes'
+                    : typeImport === 'commande'
+                      ? 'Étape 2 sur 2 — résultat'
+                      : 'Étape 3 sur 3 — résultat'
         }
       />
 
@@ -195,7 +231,35 @@ export default function Import() {
           </div>
         )}
 
-        {!importing && step === 1 && (
+        {!importing && step === 1 && !typeImport && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => handleChoixType('historique')}
+              className="tg-tap text-left rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 hover:border-brand hover:shadow-brand/20 hover:shadow-md transition-all"
+            >
+              <div className="text-2xl mb-3">📋</div>
+              <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Mettre à jour l'historique mensuel</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Importez le fichier "Données mensuelles" avec 12 mois de ventes. Permet le recalcul complet (CMM, stock de sécurité, ABC…).
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleChoixType('commande')}
+              className="tg-tap text-left rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 hover:border-brand hover:shadow-brand/20 hover:shadow-md transition-all"
+            >
+              <div className="text-2xl mb-3">🛒</div>
+              <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Préparer ma commande</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Importez l'export Logpharma "Listing de Produit à Commander" pour mettre à jour le stock actuel et voir quoi commander.
+              </p>
+            </button>
+          </div>
+        )}
+
+        {!importing && step === 1 && typeImport === 'historique' && (
           <div
             onDragOver={(e) => {
               e.preventDefault()
@@ -209,12 +273,12 @@ export default function Import() {
                 : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
             }`}
           >
-            <p className="text-slate-600 dark:text-slate-300 mb-4">
+            <p className="text-slate-600 dark:text-slate-300 mb-1">
               Glissez-déposez votre fichier ici, ou choisissez-le manuellement.
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Formats acceptés : .xlsx, .xls, .csv</p>
             <label className="tg-tap inline-block rounded-lg bg-brand-gradient px-4 py-2.5 font-semibold text-white shadow-sm cursor-pointer transition-all hover:shadow-brand hover:-translate-y-0.5">
-              {loadingStep ? 'Lecture en cours…' : 'Choisir un fichier'}
+              {loadingStep ? 'Lecture en cours…' : 'Choisir le fichier historique'}
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
@@ -223,6 +287,31 @@ export default function Import() {
                 onChange={(e) => handleFileSelected(e.target.files?.[0])}
               />
             </label>
+            <button onClick={handleRestart} className="block mx-auto mt-4 text-sm text-slate-400 hover:underline">
+              ← Retour
+            </button>
+          </div>
+        )}
+
+        {!importing && step === 1 && typeImport === 'commande' && (
+          <div className="rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-12 text-center">
+            <p className="text-slate-600 dark:text-slate-300 mb-1">
+              Sélectionnez l'export Logpharma "Listing de Produit à Commander".
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Format .xlsx uniquement — pas de mappage nécessaire</p>
+            <label className="tg-tap inline-block rounded-lg bg-brand-gradient px-4 py-2.5 font-semibold text-white shadow-sm cursor-pointer transition-all hover:shadow-brand hover:-translate-y-0.5">
+              {importing ? 'Import en cours…' : 'Choisir le fichier Logpharma'}
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                disabled={importing}
+                onChange={(e) => handleFileSelectedCommande(e.target.files?.[0])}
+              />
+            </label>
+            <button onClick={handleRestart} className="block mx-auto mt-4 text-sm text-slate-400 hover:underline">
+              ← Retour
+            </button>
           </div>
         )}
 
@@ -306,6 +395,19 @@ export default function Import() {
             {calculResult && (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {calculResult.nb_references} références recalculées — {calculResult.nb_a_commander} à commander
+              </p>
+            )}
+
+            {typeImport === 'commande' && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Stocks mis à jour et recommandations recalculées.{' '}
+                <button
+                  type="button"
+                  onClick={() => { marquerDirection('/import', '/quoi-commander'); navigate('/quoi-commander', { viewTransition: true }) }}
+                  className="font-medium text-brand hover:underline"
+                >
+                  Voir quoi commander →
+                </button>
               </p>
             )}
 

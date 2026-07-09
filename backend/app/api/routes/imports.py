@@ -21,6 +21,7 @@ from app.services.file_parser import (
     apply_mapping,
     get_columns,
     parse_file,
+    parse_commande_logpharma,
 )
 
 router = APIRouter(prefix="/imports", tags=["Import de données"])
@@ -182,6 +183,71 @@ async def import_file(
     calculer_toutes_references(officine.id, db)
 
     import_log.statut = "succes"
+    db.commit()
+    db.refresh(import_log)
+
+    return import_log
+
+
+# ─── Import Type 2 : stock Logpharma ─────────────────────────────────────────
+
+@router.post("/commande", response_model=ImportLogOut)
+async def import_commande_logpharma(
+    file: UploadFile = File(...),
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Import Type 2 (Logpharma) : parse un export 'Listing de Produit à Commander',
+    met à jour le stock_actuel de chaque référence connue, puis recalcule les statuts.
+    Format fixe — aucun mappage de colonnes nécessaire.
+    """
+    content = await file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Fichier trop volumineux (max {settings.MAX_UPLOAD_SIZE_MB} Mo).",
+        )
+
+    try:
+        lignes = parse_commande_logpharma(content)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    nb_ok = 0
+    nb_err = 0
+    erreurs: list[dict] = []
+
+    for ligne in lignes:
+        ref = db.query(Reference).filter(
+            Reference.officine_id == officine.id,
+            Reference.code == ligne["code"],
+        ).first()
+
+        if ref is None:
+            nb_err += 1
+            erreurs.append({"ligne": ligne["code"], "raison": "Code introuvable dans votre base"})
+            continue
+
+        ref.stock_actuel = ligne["stock_actuel"]
+        if ligne.get("prix_cession") is not None:
+            ref.prix_cession = ligne["prix_cession"]
+        if ligne.get("prix_public") is not None:
+            ref.prix_public = ligne["prix_public"]
+        nb_ok += 1
+
+    calculer_toutes_references(officine.id, db)
+
+    import_log = ImportLog(
+        officine_id=officine.id,
+        nom_fichier=file.filename or "inconnu",
+        statut="succes",
+        nb_lignes_total=len(lignes),
+        nb_lignes_ok=nb_ok,
+        nb_lignes_erreur=nb_err,
+        erreurs_detail=json.dumps(erreurs, ensure_ascii=False) if erreurs else None,
+    )
+    db.add(import_log)
     db.commit()
     db.refresh(import_log)
 

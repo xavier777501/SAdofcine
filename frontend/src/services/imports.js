@@ -40,6 +40,16 @@ export async function runImport(file) {
   return data
 }
 
+export async function runImportCommande(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/imports/commande', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT_MS,
+  })
+  return data
+}
+
 export async function getImportHistory() {
   const { data } = await api.get('/imports/')
   return data

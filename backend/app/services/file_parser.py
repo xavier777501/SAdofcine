@@ -111,6 +111,74 @@ def apply_mapping(df: pd.DataFrame, mapping: dict[str, str]) -> tuple[list[dict]
     return lignes_ok, lignes_err
 
 
+def parse_commande_logpharma(content: bytes) -> list[dict]:
+    """
+    Parse un export Logpharma "Listing de Produit à Commander".
+    Format fixe (3 lignes d'en-tête, 3 dernières lignes = totaux) :
+      Ligne 1 : nom officine, Ligne 2 : titre, Ligne 3 : en-têtes
+    Retourne une liste de dicts {code, designation, stock_actuel, prix_cession, prix_public, circuit}.
+    """
+    try:
+        df = pd.read_excel(io.BytesIO(content), header=2, dtype=str)
+    except Exception as e:
+        raise ValueError(f"Fichier Logpharma illisible : {e}") from e
+
+    if len(df) < 4:
+        raise ValueError("Fichier Logpharma trop court — vérifiez que c'est bien un export 'Listing de Produit à Commander'.")
+
+    # Supprimer les 3 dernières lignes (totaux)
+    df = df.iloc[:-3]
+
+    COL_CODE    = "Code Prod"
+    COL_DESIG   = "Désignation"
+    COL_STOCK   = "Qté Sal."
+    COL_PX_CES  = "Prix Ces."
+    COL_PX_PUB  = "Prix Public"
+    COL_CIRCUIT = "FOURNISSEUR"
+
+    for col in [COL_CODE, COL_DESIG, COL_STOCK]:
+        if col not in df.columns:
+            raise ValueError(
+                f"Colonne '{col}' introuvable dans le fichier. "
+                "Vérifiez que c'est bien un export Logpharma 'Listing de Produit à Commander'."
+            )
+
+    def _to_float(val) -> Optional[float]:
+        if val is None:
+            return None
+        s = str(val).strip().replace(" ", "").replace("\xa0", "")
+        if s in ("", "nan", "NaN", "-", "N/A"):
+            return None
+        try:
+            return float(s.replace(",", "."))
+        except ValueError:
+            return None
+
+    lignes: list[dict] = []
+    for _, row in df.iterrows():
+        code = str(row.get(COL_CODE) or "").strip()
+        if not code or code.lower() == "nan":
+            continue
+
+        stock = _to_float(row.get(COL_STOCK))
+        if stock is None or stock < 0:
+            stock = 0.0
+
+        lignes.append({
+            "code": code,
+            "designation": str(row.get(COL_DESIG) or "").strip() or None,
+            "stock_actuel": stock,
+            "prix_cession": _to_float(row.get(COL_PX_CES)),
+            "prix_public":  _to_float(row.get(COL_PX_PUB)),
+            "circuit":      str(row.get(COL_CIRCUIT) or "").strip() or None,
+        })
+
+    if not lignes:
+        raise ValueError("Aucun produit trouvé dans le fichier Logpharma.")
+
+    return lignes
+
+
 def _coerce(champ: str, valeur):
     """Convertit une valeur brute vers le bon type selon le champ cible."""
     if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)):
