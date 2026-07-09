@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getVentesM1 } from '../services/dashboard'
+import { estNeutralise, MESSAGE_NEUTRALISE } from '../utils/recommandation'
 
 const MOIS_NOMS_FR = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -94,6 +95,14 @@ export default function VentesM1Table() {
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUT_BADGE[v.statut] || STATUT_BADGE.OK}`}>
                     {v.statut}
                   </span>
+                  {estNeutralise(v) && (
+                    <p
+                      className="mt-1 text-[11px] text-slate-400 dark:text-slate-500 italic"
+                      title={MESSAGE_NEUTRALISE}
+                    >
+                      rotation trop rare
+                    </p>
+                  )}
                 </td>
               </tr>
             ))}

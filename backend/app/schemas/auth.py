@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 class OfficineCreate(BaseModel):
@@ -16,6 +16,14 @@ class UserLogin(BaseModel):
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str = Field(min_length=8)
 
 class Token(BaseModel):
     access_token: str

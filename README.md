@@ -166,9 +166,7 @@ Les stories sont regroupées par epic et triées par priorité de développement
 > `PATCH /references/{id}/ved` (limité aux classes A/B, sinon 422) et
 > `PATCH /references/{id}/risque-fournisseur` (entier ≥ 0), chacun relançant le
 > moteur sur toute l'officine après modification. `GET /references` ajouté aussi,
-> pour lister/tester — ce n'est qu'une liste brute (pas de KPIs agrégés, pas de
-> texte de décision), donc Epic E (US-E1 à E4) reste entièrement à faire.
-> Testé manuellement de bout en bout (rejet classe C, rejet valeur VED invalide,
+> pour lister/tester. Testé manuellement de bout en bout (rejet classe C, rejet valeur VED invalide,
 > acceptation classe A/B, interaction correcte avec la neutralisation US-D8 :
 > une référence Non-moving + VED=Vital passe bien à qté=1).
 
@@ -222,7 +220,28 @@ Les stories sont regroupées par epic et triées par priorité de développement
 - Critères : champ numérique par référence, défaut 0, modifiable à tout moment, recalcul automatique
 - Tâches techniques : endpoint `PATCH /references/{id}/risque-fournisseur`
 
-### Epic E — Tableau de pilotage (P0)
+### Epic E — Tableau de pilotage (P0) ✅ VALIDÉE
+
+> Livrée par Xavier (Sprint 4) : `GET /dashboard/kpis` (5 indicateurs),
+> `GET /dashboard/liste-action` (triée par urgence, texte de décision en
+> langage clair), `GET /dashboard/export?format=pdf|xlsx` (reportlab/openpyxl).
+> Frontend : Dashboard avec tuiles KPI, anneau de répartition, liste
+> filtrable/exportable.
+>
+> Complété le 8 juillet (Jawad) :
+> - **Bug corrigé** : les KPIs et la liste d'action n'excluaient pas les
+>   références Non-moving non-Vitales (US-D8) — les tuiles affichaient des
+>   comptes différents du nombre de lignes réellement visibles. Le filtre
+>   est maintenant appliqué de façon cohérente aux deux endpoints.
+> - `vente_m1` et `cmm` ajoutés à `LigneActionOut`.
+> - Nouvelle route `GET /dashboard/ventes-m1` : toutes les références vendues
+>   le mois dernier (M-1), triées par quantité décroissante — indépendant du
+>   statut, pour voir les best-sellers vs les produits qui ne bougent pas.
+> - **La liste d'action a sa propre page** (`/liste-action`, lien dédié dans
+>   le menu latéral) au lieu de partager l'espace avec le Dashboard.
+> - Le Dashboard affiche désormais un tableau complet des ventes M-1
+>   (`VentesM1Table`) à la place d'un résumé à 3 produits.
+> - Bouton "Voir le tableau de bord" ajouté sur l'écran de succès d'import.
 
 **US-E1 — Affichage des 5 indicateurs clés**
 > En tant que pharmacien, je veux voir en un coup d'œil le nombre de références en rupture, en critique, à commander, la valeur totale FCFA de la prochaine commande, et la trésorerie libérée potentielle.
@@ -275,8 +294,8 @@ Les stories sont regroupées par epic et triées par priorité de développement
 2. **Sprint 1** — ✅ Epic B (import + mappage de colonnes) + modèle de données complet (section 5 du cahier des charges)
 3. **Sprint 2** — ✅ Epic D complet (US-D1 à D10) + Epic G1 (67 tests de non-régression) + `GET /references` pour lister/tester
 4. **Sprint 3** — ✅ Epic C fait (simplifié — délais globaux, pas par circuit ; niveaux de service VED toujours codés en dur)
-5. **Sprint 4** — ⬜ Epic E (tableau de pilotage + export) — `GET /references` existe déjà comme brique de base, mais KPIs agrégés, tri/filtre dédié et texte de décision (US-E1 à E3) restent à faire
-6. **Sprint 5** — ⬜ Epic F (fiche référence) + polish UI/UX non-technique + tests end-to-end
+5. **Sprint 4** — ✅ Epic E (tableau de pilotage, KPIs, liste d'action, export PDF/XLSX) — enrichi le 8 juillet (page dédiée, tableau des ventes M-1, correction du filtre Non-moving)
+6. **Sprint 5** — 🚧 en cours : Epic F (fiche référence / page Stock) — tâche décrite dans `TACHE_SPRINT5_FRONTEND.md`, `ReferenceOut` déjà enrichi côté backend (`cmm`, `ss`, `pc`, `prix_cession`, `forme`)
 
 ---
 

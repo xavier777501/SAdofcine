@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { getOfficineNom, logout } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
 import Logo from './Logo'
 import ThemeToggle from './ThemeToggle'
+import ConfirmDialog from './ConfirmDialog'
 
 const NAV_ITEMS = [
   {
@@ -32,6 +34,32 @@ const NAV_ITEMS = [
         />
         <path d="M9 11.5l1.5 1.5L14 9.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M9 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    to: '/quoi-commander',
+    label: 'Quoi commander',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+        <path d="M12 21c4.5-3 7.5-6.5 7.5-10.5A7.5 7.5 0 0 0 4.5 10.5C4.5 14.5 7.5 18 12 21Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M9.5 11.5 11 13l3.5-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    to: '/resume-commandes',
+    label: 'Résumé des commandes',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+        <path
+          d="M7 4.5h7l4 4V19a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <path d="M14 4.5V9h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M9 13h6M9 16h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -87,15 +115,23 @@ const NAV_ITEMS = [
   },
 ]
 
+function initiales(nom) {
+  if (!nom) return '?'
+  const mots = nom.trim().split(/\s+/)
+  return mots.slice(0, 2).map((m) => m[0]).join('').toUpperCase()
+}
+
 export default function AppShell({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [confirmationOuverte, setConfirmationOuverte] = useState(false)
 
   function handleNavClick(to) {
     marquerDirection(location.pathname, to)
   }
 
   async function handleLogout() {
+    setConfirmationOuverte(false)
     try {
       await logout()
     } finally {
@@ -106,10 +142,11 @@ export default function AppShell({ children }) {
 
   return (
     <div className="flex min-h-screen bg-surface dark:bg-slate-900">
-      <aside className="w-60 shrink-0 hidden md:flex flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700">
-        <div className="px-5 py-6 flex flex-col items-center gap-2 text-center">
+      <aside className="w-60 shrink-0 hidden md:flex flex-col bg-gradient-to-b from-slate-900 to-slate-950">
+        <div className="px-5 py-6 flex flex-col items-center gap-1.5 text-center">
           <Logo className="h-10 w-10 rounded-xl" />
-          <span className="brand-name text-xl leading-none text-slate-900 dark:text-slate-100">StockAid</span>
+          <span className="brand-name text-xl leading-none text-white">StockAid</span>
+          <span className="text-[11px] text-slate-400">Gestion de stock pharmacie</span>
         </div>
 
         <nav className="flex-1 px-3 mt-2 space-y-1">
@@ -120,10 +157,10 @@ export default function AppShell({ children }) {
               viewTransition
               onClick={() => handleNavClick(item.to)}
               className={({ isActive }) =>
-                `tg-tap flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:font-semibold ${
+                `tg-tap flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`
               }
             >
@@ -133,21 +170,39 @@ export default function AppShell({ children }) {
           ))}
         </nav>
 
-        <div className="px-3 py-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{getOfficineNom()}</p>
-            <ThemeToggle />
+        <div className="px-3 py-4 border-t border-slate-800 space-y-3">
+          <div className="flex items-center gap-2.5 px-1">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/20 text-brand text-xs font-bold uppercase">
+              {initiales(getOfficineNom())}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white truncate">{getOfficineNom()}</p>
+              <p className="text-[11px] text-slate-400">Pharmacien</p>
+            </div>
+            <ThemeToggle dark />
           </div>
           <button
-            onClick={handleLogout}
-            className="tg-tap w-full rounded-lg border border-info text-info px-3 py-2 text-sm font-medium transition-all hover:bg-info-light dark:hover:bg-info/10"
+            onClick={() => setConfirmationOuverte(true)}
+            className="tg-tap w-full flex items-center justify-center gap-2 rounded-lg border border-slate-700 text-slate-300 px-3 py-2 text-sm font-medium transition-all hover:bg-white/5 hover:text-white"
           >
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
             Se déconnecter
           </button>
         </div>
       </aside>
 
       <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+
+      <ConfirmDialog
+        open={confirmationOuverte}
+        title="Êtes-vous sûr de vouloir vous déconnecter ?"
+        confirmLabel="Oui"
+        cancelLabel="Non"
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmationOuverte(false)}
+      />
     </div>
   )
 }

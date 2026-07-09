@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import ErrorBanner from '../components/ErrorBanner'
 import FormField from '../components/FormField'
 import SubmitButton from '../components/SubmitButton'
+import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../services/auth'
-import { getParametres, updateParametres, CYCLE_OPTIONS } from '../services/parametres'
+import { getParametres, updateParametres, getCircuits, updateDelaiCircuit, CYCLE_OPTIONS } from '../services/parametres'
 
 function versFormulaire(params) {
   return {
@@ -12,7 +13,75 @@ function versFormulaire(params) {
     cycle_commande_jours: String(params.cycle_commande_jours),
     cout_commande: String(params.cout_commande),
     taux_detention_pct: String(Math.round(params.taux_detention * 100)),
+    niveau_service_vital_pct: String(Math.round(params.niveau_service_vital * 100)),
+    niveau_service_essentiel_pct: String(Math.round(params.niveau_service_essentiel * 100)),
+    niveau_service_desirable_pct: String(Math.round(params.niveau_service_desirable * 100)),
+    niveau_service_non_renseigne_pct: String(Math.round(params.niveau_service_non_renseigne * 100)),
   }
+}
+
+function CircuitRow({ circuit, onSaved }) {
+  const [dlMoy, setDlMoy] = useState(String(circuit.dl_moy_jours))
+  const [dlMax, setDlMax] = useState(String(circuit.dl_max_jours))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSave() {
+    setError('')
+    const moy = Number(dlMoy)
+    const max = Number(dlMax)
+    if (!moy || moy <= 0 || !max || max <= 0) {
+      setError('Indiquez des délais supérieurs à 0.')
+      return
+    }
+    if (max < moy) {
+      setError('Le délai maximum doit être ≥ au délai moyen.')
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await updateDelaiCircuit(circuit.circuit, { dlMoyJours: moy, dlMaxJours: max })
+      onSaved(updated)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Impossible d\'enregistrer ce circuit.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
+      <div className="min-w-[140px] flex-1">
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{circuit.circuit}</p>
+        {!circuit.configure && (
+          <p className="text-xs text-slate-400 dark:text-slate-500">Utilise le délai global pour l'instant</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number" min="1" value={dlMoy} onChange={(e) => setDlMoy(e.target.value)}
+          className="w-16 text-sm text-right rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand"
+        />
+        <span className="text-xs text-slate-400">j moy.</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number" min="1" value={dlMax} onChange={(e) => setDlMax(e.target.value)}
+          className="w-16 text-sm text-right rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand"
+        />
+        <span className="text-xs text-slate-400">j max.</span>
+      </div>
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="tg-tap rounded-lg border border-brand text-brand px-3 py-1.5 text-xs font-semibold hover:bg-brand-light dark:hover:bg-brand/10 transition-colors disabled:opacity-50"
+      >
+        {saving ? 'Enregistrement…' : 'Enregistrer'}
+      </button>
+      {error && <p className="w-full text-xs text-danger">{error}</p>}
+    </div>
+  )
 }
 
 export default function Reglages() {
@@ -22,16 +91,27 @@ export default function Reglages() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [circuits, setCircuits] = useState([])
+  const [circuitsChargement, setCircuitsChargement] = useState(true)
 
   useEffect(() => {
     getParametres()
       .then((params) => setForm(versFormulaire(params)))
       .catch((err) => setError(getErrorMessage(err, 'Impossible de charger les réglages.')))
       .finally(() => setLoading(false))
+
+    getCircuits()
+      .then(setCircuits)
+      .catch(() => setCircuits([]))
+      .finally(() => setCircuitsChargement(false))
   }, [])
 
   function update(champ) {
     return (e) => setForm((prev) => ({ ...prev, [champ]: e.target.value }))
+  }
+
+  function handleCircuitSaved(updated) {
+    setCircuits((prev) => prev.map((c) => (c.circuit === updated.circuit ? updated : c)))
   }
 
   function validate() {
@@ -49,6 +129,10 @@ export default function Reglages() {
     if (!cout || cout <= 0) errors.cout_commande = 'Indiquez un coût supérieur à 0.'
     if (!tauxPct || tauxPct <= 0 || tauxPct >= 100) {
       errors.taux_detention_pct = 'Indiquez un pourcentage entre 0 et 100.'
+    }
+    for (const champ of ['niveau_service_vital_pct', 'niveau_service_essentiel_pct', 'niveau_service_desirable_pct', 'niveau_service_non_renseigne_pct']) {
+      const v = Number(form[champ])
+      if (!v || v <= 0 || v >= 100) errors[champ] = 'Indiquez un pourcentage entre 0 et 100.'
     }
     return errors
   }
@@ -69,6 +153,10 @@ export default function Reglages() {
         cycle_commande_jours: Number(form.cycle_commande_jours),
         cout_commande: Number(form.cout_commande),
         taux_detention: Number(form.taux_detention_pct) / 100,
+        niveau_service_vital: Number(form.niveau_service_vital_pct) / 100,
+        niveau_service_essentiel: Number(form.niveau_service_essentiel_pct) / 100,
+        niveau_service_desirable: Number(form.niveau_service_desirable_pct) / 100,
+        niveau_service_non_renseigne: Number(form.niveau_service_non_renseigne_pct) / 100,
       })
       setForm(versFormulaire(params))
       setSuccess(true)
@@ -81,12 +169,11 @@ export default function Reglages() {
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Réglages</h1>
-        <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
-          Ces valeurs servent à calculer vos recommandations de commande. Elles changent rarement.
-        </p>
-      </div>
+      <PageHeader
+        label="Réglages"
+        title="Réglages"
+        subtitle="Ces valeurs servent à calculer vos recommandations de commande. Elles changent rarement."
+      />
 
         <ErrorBanner message={error} />
         {success && (
@@ -174,10 +261,81 @@ export default function Reglages() {
               />
             </div>
 
+            <hr className="border-slate-200 dark:border-slate-700" />
+
+            <div>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Niveau de service souhaité</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Plus le pourcentage est élevé, moins vous risquez la rupture — mais plus le stock de sécurité immobilise de trésorerie.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                label="Produits vitaux (%)"
+                id="niveau_service_vital_pct"
+                type="number"
+                min="1"
+                max="99"
+                required
+                value={form.niveau_service_vital_pct}
+                onChange={update('niveau_service_vital_pct')}
+                error={fieldErrors.niveau_service_vital_pct}
+              />
+              <FormField
+                label="Produits essentiels (%)"
+                id="niveau_service_essentiel_pct"
+                type="number"
+                min="1"
+                max="99"
+                required
+                value={form.niveau_service_essentiel_pct}
+                onChange={update('niveau_service_essentiel_pct')}
+                error={fieldErrors.niveau_service_essentiel_pct}
+              />
+              <FormField
+                label="Produits désirables (%)"
+                id="niveau_service_desirable_pct"
+                type="number"
+                min="1"
+                max="99"
+                required
+                value={form.niveau_service_desirable_pct}
+                onChange={update('niveau_service_desirable_pct')}
+                error={fieldErrors.niveau_service_desirable_pct}
+              />
+              <FormField
+                label="Produits non classés (%)"
+                id="niveau_service_non_renseigne_pct"
+                type="number"
+                min="1"
+                max="99"
+                required
+                hint="Tant qu'un produit n'a pas été classé"
+                value={form.niveau_service_non_renseigne_pct}
+                onChange={update('niveau_service_non_renseigne_pct')}
+                error={fieldErrors.niveau_service_non_renseigne_pct}
+              />
+            </div>
+
             <SubmitButton loading={saving} loadingLabel="Recalcul en cours… (peut prendre 20 s)">
               Enregistrer les réglages
             </SubmitButton>
           </form>
+        )}
+
+        {!circuitsChargement && circuits.length > 0 && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Délais par circuit fournisseur</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Vos références importées viennent de plusieurs circuits (local, France, Chine-Inde...). Vous pouvez donner un délai spécifique à chacun — sinon le délai global ci-dessus s'applique.
+            </p>
+            <div className="mt-3">
+              {circuits.map((c) => (
+                <CircuitRow key={c.circuit} circuit={c} onSaved={handleCircuitSaved} />
+              ))}
+            </div>
+          </div>
         )}
     </div>
   )

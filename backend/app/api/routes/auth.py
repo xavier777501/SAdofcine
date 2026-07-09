@@ -1,13 +1,26 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_password_hash, create_access_token, verify_password
-from app.schemas.auth import SetupData, UserLogin, PasswordChange, Token
+from app.core.security import (
+    get_password_hash,
+    create_access_token,
+    verify_password,
+    generate_reset_code,
+    hash_reset_token,
+)
+from app.schemas.auth import SetupData, UserLogin, PasswordChange, Token, ForgotPasswordRequest, ResetPasswordRequest
 from app.models.officine import Officine
 from app.models.user import User
+from app.models.password_reset_token import PasswordResetToken
+from app.services.email import send_password_reset_email
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Authentification"])
+
+MAX_TENTATIVES_CODE = 5
 
 
 @router.get("/is-setup")
@@ -76,3 +89,66 @@ def change_password(
     current_user.hashed_password = get_password_hash(data.new_password)
     db.commit()
     return {"message": "Mot de passe mis à jour avec succès."}
+
+
+@router.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Envoie un code de vérification par email si le compte existe.
+    Renvoie toujours le même message, que l'email existe ou non, pour ne pas
+    révéler quels emails sont enregistrés.
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+    if user:
+        # Invalide les codes précédents encore actifs, pour n'avoir qu'un seul code valide à la fois.
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        ).update({"used_at": datetime.utcnow()})
+
+        raw_code, code_hash = generate_reset_code()
+        expires_at = datetime.utcnow() + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+        db.add(PasswordResetToken(user_id=user.id, token_hash=code_hash, expires_at=expires_at))
+        db.commit()
+
+        send_password_reset_email(user.email, raw_code)
+
+    return {"message": "Si un compte existe avec cet email, un code de vérification vient d'être envoyé."}
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Réinitialise le mot de passe à partir du code de vérification reçu par email."""
+    erreur_code = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Code invalide ou expiré. Refaites une demande.",
+    )
+
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise erreur_code
+
+    reset_token = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .order_by(PasswordResetToken.created_at.desc())
+        .first()
+    )
+    if not reset_token or reset_token.expires_at < datetime.utcnow():
+        raise erreur_code
+
+    if reset_token.attempts >= MAX_TENTATIVES_CODE:
+        reset_token.used_at = datetime.utcnow()
+        db.commit()
+        raise erreur_code
+
+    if hash_reset_token(data.code) != reset_token.token_hash:
+        reset_token.attempts += 1
+        db.commit()
+        raise erreur_code
+
+    user.hashed_password = get_password_hash(data.new_password)
+    reset_token.used_at = datetime.utcnow()
+    db.commit()
+
+    return {"message": "Mot de passe réinitialisé avec succès."}

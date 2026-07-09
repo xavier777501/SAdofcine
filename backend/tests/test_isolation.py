@@ -10,6 +10,7 @@ from app.main import app
 from app.core.database import get_db, Base, engine
 from app.models.officine import Officine
 from app.models.user import User
+from app.models.reference import Reference
 from app.core.security import get_password_hash
 
 
@@ -105,6 +106,24 @@ def token_b(client, user_b):
     return response.json()["access_token"]
 
 
+@pytest.fixture
+def reference_a(db_session, officine_a):
+    ref = Reference(officine_id=officine_a.id, code="A001", designation="Doliprane 500mg", stock_actuel=10)
+    db_session.add(ref)
+    db_session.commit()
+    db_session.refresh(ref)
+    return ref
+
+
+@pytest.fixture
+def reference_b(db_session, officine_b):
+    ref = Reference(officine_id=officine_b.id, code="B001", designation="Efferalgan 1g", stock_actuel=20)
+    db_session.add(ref)
+    db_session.commit()
+    db_session.refresh(ref)
+    return ref
+
+
 # ============ TESTS D'ISOLATION ============
 
 class TestIsolation:
@@ -144,3 +163,43 @@ class TestIsolation:
         )
         assert response.status_code == 200
         assert "message" in response.json()
+
+
+class TestIsolationDonneesBoutEnBout:
+    """
+    Vérifie, au niveau HTTP (pas seulement au niveau du token JWT), qu'aucune
+    donnée d'une officine n'est jamais accessible depuis une autre officine.
+    """
+
+    def test_liste_references_exclut_lautre_officine(self, client, token_a, reference_a, reference_b):
+        response = client.get("/api/v1/references", headers={"Authorization": f"Bearer {token_a}"})
+        assert response.status_code == 200
+        codes = [r["code"] for r in response.json()]
+        assert reference_a.code in codes
+        assert reference_b.code not in codes
+
+    def test_kpis_ne_comptent_pas_lautre_officine(self, client, token_a, reference_a, reference_b):
+        response = client.get("/api/v1/dashboard/kpis", headers={"Authorization": f"Bearer {token_a}"})
+        assert response.status_code == 200
+        assert response.json()["nb_references"] == 1
+
+    def test_modification_reference_dune_autre_officine_rejetee(self, client, token_a, reference_b):
+        """Deviner l'id d'une référence d'une autre officine ne doit permettre ni de la lire ni de la modifier."""
+        response = client.patch(
+            f"/api/v1/references/{reference_b.id}/ved",
+            json={"ved": "Vital"},
+            headers={"Authorization": f"Bearer {token_a}"},
+        )
+        assert response.status_code == 404
+
+    def test_parametres_isoles_par_officine(self, client, token_a, token_b):
+        """Modifier les réglages de l'officine A ne doit pas affecter ceux de l'officine B."""
+        response_patch = client.patch(
+            "/api/v1/parametres",
+            json={"cout_commande": 12345},
+            headers={"Authorization": f"Bearer {token_a}"},
+        )
+        assert response_patch.status_code == 200
+
+        response_b = client.get("/api/v1/parametres", headers={"Authorization": f"Bearer {token_b}"})
+        assert response_b.json()["cout_commande"] != 12345

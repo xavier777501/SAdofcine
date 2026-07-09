@@ -28,3 +28,11 @@ class ParametreOfficine(BaseModel):
     # Paramètres EOQ
     cout_commande = Column(Float, nullable=False, default=5000.0)   # FCFA par commande
     taux_detention = Column(Float, nullable=False, default=0.20)    # 20 % annuel
+
+    # Niveaux de service visés par statut VED (0-1), pilotent le facteur Z
+    # via INV.NORMALE.STANDARD — section 6.6 du cahier des charges.
+    # Valeurs par défaut : Vital 99 %, Essentiel 95 %, Désirable 90 %, Non renseigné 95 %.
+    niveau_service_vital          = Column(Float, nullable=False, default=0.99)
+    niveau_service_essentiel      = Column(Float, nullable=False, default=0.95)
+    niveau_service_desirable      = Column(Float, nullable=False, default=0.90)
+    niveau_service_non_renseigne  = Column(Float, nullable=False, default=0.95)

@@ -12,21 +12,35 @@ import math
 import statistics
 from typing import Optional
 
+from scipy.stats import norm
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Constantes VED → facteur Z (niveau de service)
+# VED → niveau de service visé, et facteur Z = INV.NORMALE.STANDARD(niveau)
 # ─────────────────────────────────────────────────────────────────────────────
 
-Z_PAR_VED: dict[str | None, float] = {
-    "Vital":     2.33,
-    "Essentiel": 1.645,
-    "Désirable": 1.28,
-    None:        1.645,   # Non renseigné → 95 % par défaut
+NIVEAU_SERVICE_PAR_DEFAUT: dict[str | None, float] = {
+    "Vital":     0.99,
+    "Essentiel": 0.95,
+    "Désirable": 0.90,
+    None:        0.95,   # Non renseigné → 95 % par défaut
 }
 
 
-def get_z(ved: str | None) -> float:
-    return Z_PAR_VED.get(ved, 1.645)
+def get_z(ved: str | None, niveaux_service: Optional[dict] = None) -> float:
+    """
+    Facteur de service Z = INV.NORMALE.STANDARD(niveau de service visé selon VED).
+
+    Le niveau de service par statut VED est configurable par l'officine
+    (section 6.6 du cahier des charges) : si `niveaux_service` est fourni
+    (dict VED → % entre 0 et 1, tel que stocké sur ParametreOfficine), il est
+    utilisé ; sinon les valeurs par défaut du cahier des charges s'appliquent.
+    Modifier le % recalcule donc automatiquement Z, et par ricochet tout le
+    moteur (SS, PC, S, quantités).
+    """
+    niveaux = niveaux_service or NIVEAU_SERVICE_PAR_DEFAUT
+    niveau_service = niveaux.get(ved, niveaux.get(None, 0.95))
+    return float(norm.ppf(niveau_service))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -242,10 +256,10 @@ def calc_classes_abc(
     """
     Classifie toutes les références A/B/C selon leur poids dans le CA annuel cumulé.
 
-    Entrée  : liste de dicts {"id": ..., "cmm": float, "prix_cession": float | None}
+    Entrée  : liste de dicts {"id": ..., "cmm": float, "prix_public": float | None}
     Sortie  : dict {id → "A" | "B" | "C"}
 
-    - Tri décroissant par CA annuel (CMM × 12 × prix_cession)
+    - Tri décroissant par CA annuel (CMM × 12 × Prix public, section 6.2)
     - A : jusqu'à 80 % du CA cumulé
     - B : de 80 % à 95 %
     - C : au-delà
@@ -254,7 +268,7 @@ def calc_classes_abc(
     avec_ca = []
     for ref in references:
         cmm = ref.get("cmm") or 0.0
-        prix = ref.get("prix_cession") or 0.0
+        prix = ref.get("prix_public") or 0.0
         ca = cmm * 12 * prix
         avec_ca.append({"id": ref["id"], "ca": ca, "cmm": cmm})
 

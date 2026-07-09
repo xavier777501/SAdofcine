@@ -6,7 +6,8 @@ class KpisOut(BaseModel):
     nb_references: int             # total de références
     nb_rupture: int
     nb_critique: int
-    nb_a_commander: int           # rupture + critique + commander
+    nb_commander: int              # statut COMMANDER uniquement
+    nb_a_commander: int            # rupture + critique + commander (total actionnable)
     valeur_commande_fcfa: float   # sum(qte_a_commander × prix_cession)
     tresorerie_liberee_fcfa: float
 
@@ -36,5 +37,15 @@ class VenteM1Out(BaseModel):
     stock_actuel: float
     statut: str                    # RUPTURE / CRITIQUE / COMMANDER / OK
     qte_a_commander: float
+
+    model_config = {"from_attributes": False}
+
+
+class LigneNePasCommanderOut(BaseModel):
+    code: str
+    designation: str
+    stock_actuel: float
+    tresorerie_immobilisee: float   # FCFA dormant sur cette référence
+    motif: str                      # texte clair, sans jargon
 
     model_config = {"from_attributes": False}

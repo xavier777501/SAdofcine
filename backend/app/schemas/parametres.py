@@ -8,6 +8,10 @@ class ParametreOfficineOut(BaseModel):
     cycle_commande_jours: int
     cout_commande: float
     taux_detention: float
+    niveau_service_vital: float
+    niveau_service_essentiel: float
+    niveau_service_desirable: float
+    niveau_service_non_renseigne: float
 
     model_config = {"from_attributes": True}
 
@@ -18,3 +22,7 @@ class ParametreOfficineUpdate(BaseModel):
     cycle_commande_jours: Optional[int] = Field(default=None, ge=0)
     cout_commande: Optional[float] = Field(default=None, gt=0)
     taux_detention: Optional[float] = Field(default=None, gt=0, lt=1)
+    niveau_service_vital: Optional[float] = Field(default=None, gt=0, lt=1)
+    niveau_service_essentiel: Optional[float] = Field(default=None, gt=0, lt=1)
+    niveau_service_desirable: Optional[float] = Field(default=None, gt=0, lt=1)
+    niveau_service_non_renseigne: Optional[float] = Field(default=None, gt=0, lt=1)

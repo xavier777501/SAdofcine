@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 import bcrypt
+import hashlib
+import secrets
 from jose import JWTError, jwt
 from app.core.config import settings
 
@@ -40,3 +42,14 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+def generate_reset_code() -> tuple[str, str]:
+    """Génère un code de vérification à 6 chiffres. Retourne (code en clair à envoyer par email, hash à stocker en base)."""
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    return code, hash_reset_token(code)
+
+
+def hash_reset_token(raw_token: str) -> str:
+    """Hash un code/token de réinitialisation (jamais stocké en clair, comme un mot de passe)."""
+    return hashlib.sha256(raw_token.encode('utf-8')).hexdigest()

@@ -12,6 +12,15 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24h
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
+
+    # Envoi d'email (réinitialisation de mot de passe)
+    # Si SMTP_HOST est vide, le code est simplement écrit dans les logs backend (mode dev, pas d'envoi réel).
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "no-reply@stockaid.app"
 
     # Base de données
     DATABASE_URL: str

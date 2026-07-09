@@ -15,6 +15,11 @@ export async function getVentesM1() {
   return data
 }
 
+export async function getANePasCommander() {
+  const { data } = await api.get('/dashboard/a-ne-pas-commander')
+  return data
+}
+
 export async function exportListe(format) {
   const { data } = await api.get('/dashboard/export', {
     params: { format },

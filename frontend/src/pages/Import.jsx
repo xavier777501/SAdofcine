@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ErrorBanner from '../components/ErrorBanner'
 import ImportHistoryTable from '../components/ImportHistoryTable'
+import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
 import { lancerCalcul } from '../services/calcul'
@@ -132,14 +133,15 @@ export default function Import() {
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-3xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Importer des données</h1>
-        <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
-            {importing
-              ? 'Import en cours — traitement des données…'
-              : `Étape ${step} sur 3 — ${step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}`}
-          </p>
-        </div>
+      <PageHeader
+        label="Importer"
+        title="Importer des données"
+        subtitle={
+          importing
+            ? 'Import en cours — traitement des données…'
+            : `Étape ${step} sur 3 — ${step === 1 ? 'sélection du fichier' : step === 2 ? 'mappage des colonnes' : 'résultat'}`
+        }
+      />
 
         <ErrorBanner message={error} />
 

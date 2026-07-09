@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { getReferences, updateVed, updateRisque } from '../services/references'
+import { estNeutralise, MESSAGE_NEUTRALISE } from '../utils/recommandation'
+import PageHeader from '../components/PageHeader'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,10 +25,12 @@ const CLASSE_CFG = {
   C: 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',
 }
 
-const FSN_CFG = {
-  Fast:        'text-brand dark:text-brand',
-  Slow:        'text-orange-500 dark:text-orange-400',
-  'Non-moving':'text-slate-400 dark:text-slate-500',
+// Libellés en langage clair (le jargon FSN/VED/CMM/SS/PC ne doit jamais
+// s'afficher au pharmacien — cahier des charges section 9).
+const ROTATION_CFG = {
+  Fast:        { classe: 'text-brand dark:text-brand',                 label: 'Rapide' },
+  Slow:        { classe: 'text-orange-500 dark:text-orange-400',       label: 'Lente' },
+  'Non-moving':{ classe: 'text-slate-400 dark:text-slate-500',         label: 'Rare' },
 }
 
 const VED_OPTIONS = ['Vital', 'Essentiel', 'Désirable']
@@ -176,13 +180,11 @@ export default function Stock() {
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-7xl mx-auto space-y-5">
 
-      {/* Titre */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Stock</h1>
-        <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
-          {chargement ? 'Chargement…' : `${refs.length} référence${refs.length > 1 ? 's' : ''} — ${refsFiltrees.length} affichée${refsFiltrees.length > 1 ? 's' : ''}`}
-        </p>
-      </div>
+      <PageHeader
+        label="Stock"
+        title="Stock"
+        subtitle={chargement ? 'Chargement…' : `${refs.length} référence${refs.length > 1 ? 's' : ''} — ${refsFiltrees.length} affichée${refsFiltrees.length > 1 ? 's' : ''}`}
+      />
 
       {/* Barre de filtres */}
       <div className="flex flex-wrap gap-3 items-center">
@@ -261,12 +263,12 @@ export default function Stock() {
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3">Désignation</th>
                   <th className="px-4 py-3 text-center">Cl.</th>
-                  <th className="px-4 py-3 text-center">FSN</th>
-                  <th className="px-4 py-3">VED</th>
+                  <th className="px-4 py-3 text-center">Rotation</th>
+                  <th className="px-4 py-3">Priorité</th>
                   <th className="px-4 py-3 text-right">Stock</th>
-                  <th className="px-4 py-3 text-right">CMM</th>
-                  <th className="px-4 py-3 text-right">SS</th>
-                  <th className="px-4 py-3 text-right">PC</th>
+                  <th className="px-4 py-3 text-right">Ventes/mois</th>
+                  <th className="px-4 py-3 text-right">Seuil critique</th>
+                  <th className="px-4 py-3 text-right">Seuil de commande</th>
                   <th className="px-4 py-3 text-right">Qté cmd.</th>
                   <th className="px-4 py-3 text-right">Risque frs.</th>
                 </tr>
@@ -314,13 +316,13 @@ export default function Stock() {
                             </span>
                           )}
                         </td>
-                        {/* FSN */}
+                        {/* Rotation (FSN) */}
                         <td className="px-4 py-2.5 text-center">
-                          <span className={`text-xs font-medium ${FSN_CFG[r.fsn] || 'text-slate-500'}`}>
-                            {r.fsn || '—'}
+                          <span className={`text-xs font-medium ${ROTATION_CFG[r.fsn]?.classe || 'text-slate-500'}`}>
+                            {ROTATION_CFG[r.fsn]?.label || '—'}
                           </span>
                         </td>
-                        {/* VED éditable */}
+                        {/* Priorité (VED) éditable */}
                         <td className="px-4 py-2.5">
                           <VedCell
                             ligne={r}
@@ -332,21 +334,30 @@ export default function Stock() {
                         <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-700 dark:text-slate-300">
                           {fmtNb(r.stock_actuel)}
                         </td>
-                        {/* CMM */}
+                        {/* Ventes moyennes / mois (CMM) */}
                         <td className="px-4 py-2.5 text-right tabular-nums text-xs text-slate-500 dark:text-slate-400">
                           {fmtNb(r.cmm, 1)}
                         </td>
-                        {/* SS */}
+                        {/* Seuil critique (SS) */}
                         <td className="px-4 py-2.5 text-right tabular-nums text-xs text-slate-500 dark:text-slate-400">
                           {fmtNb(r.ss, 1)}
                         </td>
-                        {/* PC */}
+                        {/* Seuil de commande (PC) */}
                         <td className="px-4 py-2.5 text-right tabular-nums text-xs text-slate-500 dark:text-slate-400">
                           {fmtNb(r.pc, 1)}
                         </td>
                         {/* Qté à commander */}
                         <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-200">
-                          {r.qte_a_commander > 0 ? fmtNb(r.qte_a_commander) : '—'}
+                          {r.qte_a_commander > 0 ? (
+                            fmtNb(r.qte_a_commander)
+                          ) : estNeutralise(r) ? (
+                            <span
+                              className="text-xs font-normal italic text-slate-400 dark:text-slate-500"
+                              title={MESSAGE_NEUTRALISE}
+                            >
+                              non réappro.
+                            </span>
+                          ) : '—'}
                         </td>
                         {/* Risque fournisseur éditable */}
                         <td className="px-4 py-2.5 text-right">
@@ -371,7 +382,7 @@ export default function Stock() {
               {filtreStatut !== 'TOUS' || filtreClasse !== 'TOUS' || recherche
                 ? ` sur ${refs.length} au total`
                 : ''}
-              {' · '}VED modifiable uniquement pour les classes A et B
+              {' · '}Priorité modifiable uniquement pour les classes A et B
               {' · '}Cliquer sur le risque fournisseur pour modifier
             </div>
           )}

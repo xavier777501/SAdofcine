@@ -182,20 +182,30 @@ class TestFSN:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestGetZ:
+    """
+    Z = INV.NORMALE.STANDARD(niveau de service). Les valeurs attendues sont
+    celles du cahier des charges (2,326 / 1,645 / 1,282 / 1,645), retrouvées
+    ici en calculant Z depuis le % de niveau de service (99/95/90/95 %).
+    """
     def test_vital(self):
-        assert get_z("Vital") == 2.33
+        assert approx(get_z("Vital"), 2.326)
 
     def test_essentiel(self):
-        assert get_z("Essentiel") == 1.645
+        assert approx(get_z("Essentiel"), 1.645)
 
     def test_desirable(self):
-        assert get_z("Désirable") == 1.28
+        assert approx(get_z("Désirable"), 1.282)
 
     def test_non_renseigne_none(self):
-        assert get_z(None) == 1.645
+        assert approx(get_z(None), 1.645)
 
     def test_non_renseigne_inconnu(self):
-        assert get_z("autre") == 1.645
+        assert approx(get_z("autre"), 1.645)
+
+    def test_niveaux_service_personnalises(self):
+        """Un niveau de service personnalisé par l'officine doit changer Z."""
+        niveaux = {"Vital": 0.999, "Essentiel": 0.95, "Désirable": 0.90, None: 0.95}
+        assert get_z("Vital", niveaux) > get_z("Vital")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -368,7 +378,7 @@ class TestNeutralisationFSN:
 
 class TestABC:
     def _build_refs(self, data):
-        return [{"id": k, "cmm": v["cmm"], "prix_cession": v["prix"]} for k, v in data.items()]
+        return [{"id": k, "cmm": v["cmm"], "prix_public": v["prix"]} for k, v in data.items()]
 
     def test_repartition_classique(self):
         # 1 produit domine le CA → classe A ; les petits → C
@@ -385,8 +395,8 @@ class TestABC:
 
     def test_ca_zero_tout_c(self):
         refs = [
-            {"id": "r1", "cmm": 0.0, "prix_cession": 0.0},
-            {"id": "r2", "cmm": 0.0, "prix_cession": None},
+            {"id": "r1", "cmm": 0.0, "prix_public": 0.0},
+            {"id": "r2", "cmm": 0.0, "prix_public": None},
         ]
         classes = calc_classes_abc(refs)
         assert all(v == "C" for v in classes.values())
@@ -401,12 +411,12 @@ class TestABC:
         # r2..r4 = 15% → B (cumul_avant entre 80% et 95%)
         # r5..r10 = 5% → C (cumul_avant ≥ 95%)
         refs = [
-            {"id": "r1", "cmm": 666.67, "prix_cession": 1.0},  # CA≈8000
-            {"id": "r2", "cmm": 166.67, "prix_cession": 0.5},  # CA≈1000 (x3=3000 → 80-95%)
-            {"id": "r3", "cmm": 166.67, "prix_cession": 0.5},
-            {"id": "r4", "cmm": 100.0,  "prix_cession": 0.4},  # CA≈480
-            {"id": "r5", "cmm": 10.0,   "prix_cession": 0.1},  # CA≈12 (x3=36 → >95%)
-            {"id": "r6", "cmm": 10.0,   "prix_cession": 0.1},
+            {"id": "r1", "cmm": 666.67, "prix_public": 1.0},  # CA≈8000
+            {"id": "r2", "cmm": 166.67, "prix_public": 0.5},  # CA≈1000 (x3=3000 → 80-95%)
+            {"id": "r3", "cmm": 166.67, "prix_public": 0.5},
+            {"id": "r4", "cmm": 100.0,  "prix_public": 0.4},  # CA≈480
+            {"id": "r5", "cmm": 10.0,   "prix_public": 0.1},  # CA≈12 (x3=36 → >95%)
+            {"id": "r6", "cmm": 10.0,   "prix_public": 0.1},
         ]
         classes = calc_classes_abc(refs)
         # Le premier article (dominant) est en A

@@ -15,6 +15,8 @@ import app.models.vente_mensuelle    # noqa: F401
 import app.models.import_log         # noqa: F401
 import app.models.column_mapping     # noqa: F401
 import app.models.parametre_officine # noqa: F401
+import app.models.password_reset_token # noqa: F401
+import app.models.delai_circuit      # noqa: F401
 
 app = FastAPI(
     title=settings.APP_NAME,

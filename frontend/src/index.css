@@ -71,6 +71,20 @@ html.dark {
   transition-duration: 100ms;
 }
 
+/* Apparition douce des boîtes de dialogue de confirmation. */
+.tg-modal-backdrop {
+  animation: tg-modal-fade 180ms ease-out both;
+}
+.tg-modal-panel {
+  animation: tg-modal-pop 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes tg-modal-fade {
+  from { opacity: 0; }
+}
+@keyframes tg-modal-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+}
+
 /* ============================================================
    Transitions "à la Telegram" via la View Transitions API.
    Deux usages distincts, distingués par html[data-vt] :

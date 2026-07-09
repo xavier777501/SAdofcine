@@ -7,8 +7,13 @@ const NIVEAUX_ECRAN = {
   '/': 0,
   '/setup': 1,
   '/login': 1,
+  '/mot-de-passe-oublie': 2,
+  '/bienvenue': 2,
   '/dashboard': 2,
   '/liste-action': 3,
+  '/quoi-commander': 3,
+  '/resume-commandes': 3,
+  '/stock': 3,
   '/import': 3,
   '/reglages': 3,
 }

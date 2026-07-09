@@ -34,7 +34,7 @@ export default function RepartitionStockDonut({ nbRupture, nbACommander, nbRefer
   })
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 px-6 py-5 flex flex-col sm:flex-row items-center gap-6 transition-all duration-200 hover:shadow-md hover:-translate-y-1">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 px-6 py-6 flex flex-col sm:flex-row items-center gap-8 transition-all duration-200 hover:shadow-md hover:-translate-y-1">
       <div className="relative shrink-0" style={{ width: TAILLE, height: TAILLE }}>
         <svg width={TAILLE} height={TAILLE} viewBox={`0 0 ${TAILLE} ${TAILLE}`} role="img" aria-label="Répartition du stock par statut">
           <circle
@@ -79,12 +79,13 @@ export default function RepartitionStockDonut({ nbRupture, nbACommander, nbRefer
         </div>
       </div>
 
-      <div className="flex-1 w-full space-y-2.5">
-        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Répartition du stock</p>
+      <div className="flex-1 w-full space-y-1">
+        <p className="text-base font-bold text-slate-900 dark:text-slate-100">Répartition du stock</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">Vue d'ensemble sur {nbReferences} référence{nbReferences > 1 ? 's' : ''}</p>
         {arcs.map((a) => (
           <div
             key={a.cle}
-            className={`flex items-center justify-between rounded-lg px-2 py-1.5 -mx-2 transition-colors ${
+            className={`flex items-center justify-between rounded-lg px-2 py-2 -mx-2 transition-colors ${
               survole === a.cle ? 'bg-slate-50 dark:bg-slate-700/50' : ''
             }`}
             onMouseEnter={() => setSurvole(a.cle)}
@@ -94,7 +95,7 @@ export default function RepartitionStockDonut({ nbRupture, nbACommander, nbRefer
               <span className={`h-2.5 w-2.5 rounded-full bg-current ${a.classeCouleur}`} />
               {a.label}
             </span>
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+            <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
               {a.valeur} <span className="font-normal text-slate-400 dark:text-slate-500">({a.pourcentage}%)</span>
             </span>
           </div>

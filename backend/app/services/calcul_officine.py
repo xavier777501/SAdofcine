@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.models.delai_circuit import DelaiCircuit
 from app.models.parametre_officine import ParametreOfficine
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
@@ -50,6 +51,13 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
     """
     params = get_or_create_parametres(officine_id, db)
 
+    niveaux_service = {
+        "Vital":     params.niveau_service_vital,
+        "Essentiel": params.niveau_service_essentiel,
+        "Désirable": params.niveau_service_desirable,
+        None:        params.niveau_service_non_renseigne,
+    }
+
     references = (
         db.query(Reference)
         .filter(Reference.officine_id == officine_id)
@@ -57,6 +65,19 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
     )
     if not references:
         return {"nb_references": 0, "nb_a_commander": 0, "nb_rupture": 0}
+
+    # Délais fournisseurs par circuit (local/France/Chine-Inde...) — repli sur
+    # le délai global de l'officine si le circuit de la référence n'est pas
+    # renseigné ou n'a pas été configuré (section 5/8 du cahier des charges).
+    delais_par_circuit = {
+        d.circuit: (d.dl_moy_jours, d.dl_max_jours)
+        for d in db.query(DelaiCircuit).filter(DelaiCircuit.officine_id == officine_id).all()
+    }
+
+    def delais_de(ref: Reference) -> tuple[int, int]:
+        if ref.circuit and ref.circuit in delais_par_circuit:
+            return delais_par_circuit[ref.circuit]
+        return params.dl_moy_jours, params.dl_max_jours
 
     # Récupérer toutes les ventes en une seule requête
     ref_ids = [r.id for r in references]
@@ -83,18 +104,19 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
         cmmax = calc_cmmax(ventes)
         sigma = calc_sigma(ventes)
         fsn   = calc_fsn(ventes)
-        z     = get_z(ref.ved)
+        z     = get_z(ref.ved, niveaux_service)
+        dl_moy_jours, dl_max_jours = delais_de(ref)
 
-        ss    = calc_ss(z, sigma, params.dl_max_jours)
-        pc    = calc_pc(cmm, params.dl_moy_jours, ss)
+        ss    = calc_ss(z, sigma, dl_max_jours)
+        pc    = calc_pc(cmm, dl_moy_jours, ss)
         statut = calc_statut(ref.stock_actuel or 0.0, ss, pc)
 
         eoq   = calc_eoq(cmm, params.cout_commande, params.taux_detention, ref.prix_cession)
 
         Y     = ref.risque_fournisseur_jours or 0
         T     = params.cycle_commande_jours
-        ss_p  = calc_ss_periodique(z, sigma, params.dl_max_jours, T, Y)
-        S     = calc_niveau_recompletement(cmm, params.dl_moy_jours, T, Y, ss_p)
+        ss_p  = calc_ss_periodique(z, sigma, dl_max_jours, T, Y)
+        S     = calc_niveau_recompletement(cmm, dl_moy_jours, T, Y, ss_p)
         qte_cycle   = calc_qte_commander(S, ref.stock_actuel or 0.0)
         qte_continu = calc_qte_commander_continu(pc, ref.stock_actuel or 0.0, cmm)
 
@@ -123,8 +145,10 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
         ref.tresorerie_liberee     = tresorerie
 
     # ── Étape 2 : classification ABC (nécessite tous les CMM) ─────────────────
+    # CA = ventes 12 mois × Prix public (section 6.2) ; repli sur prix de
+    # cession si le prix public est absent de l'import.
     abc_input = [
-        {"id": str(r.id), "cmm": r.cmm, "prix_cession": r.prix_cession}
+        {"id": str(r.id), "cmm": r.cmm, "prix_public": r.prix_public or r.prix_cession}
         for r in references
     ]
     classes = calc_classes_abc(abc_input)

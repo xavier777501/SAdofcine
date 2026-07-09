@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.models.officine import Officine
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
-from app.schemas.dashboard import KpisOut, LigneActionOut, VenteM1Out
+from app.schemas.dashboard import KpisOut, LigneActionOut, VenteM1Out, LigneNePasCommanderOut
 from app.services.texte_decision import generer_texte
 from app.services.export_dashboard import generer_xlsx, generer_pdf
 
@@ -94,6 +94,7 @@ def get_kpis(
         nb_references=len(refs),
         nb_rupture=nb_rupture,
         nb_critique=nb_critique,
+        nb_commander=nb_commander,
         nb_a_commander=nb_rupture + nb_critique + nb_commander,
         valeur_commande_fcfa=round(valeur, 0),
         tresorerie_liberee_fcfa=round(tresorerie, 0),
@@ -152,6 +153,52 @@ def get_ventes_m1(
 
     resultats.sort(key=lambda l: l["vente_m1"], reverse=True)
     return resultats
+
+
+# ── Produits à ne pas commander (rotation morte ou stock excédentaire) ───────
+
+@router.get("/a-ne-pas-commander", response_model=list[LigneNePasCommanderOut])
+def get_a_ne_pas_commander(
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Liste des références qu'il ne faut PAS réapprovisionner pour l'instant :
+    - rotation quasi nulle (Non-moving, hors Vital qui reste prudemment recommandé
+      à 1 unité — US-D8) ;
+    - ou stock largement supérieur au besoin réel (trésorerie immobilisée > 0).
+    Triée par montant immobilisé décroissant : les plus gros freins de trésorerie
+    d'abord (section 7 du cahier des charges — argument "trésorerie libérée",
+    ici détaillé référence par référence plutôt qu'en un seul total agrégé).
+    """
+    refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
+
+    # Déjà dans la liste d'action (à commander) : ne peut pas aussi être "à ne pas commander".
+    refs = [r for r in refs if r.statut not in ("RUPTURE", "CRITIQUE", "COMMANDER")]
+
+    lignes = []
+    for r in refs:
+        tresorerie = r.tresorerie_liberee or 0.0
+        rotation_morte = r.fsn == "Non-moving" and r.ved != "Vital"
+
+        if not rotation_morte and tresorerie <= 0:
+            continue
+
+        if rotation_morte:
+            motif = "Ce produit ne s'est presque pas vendu récemment — mieux vaut ne pas le réapprovisionner."
+        else:
+            motif = "Vous avez déjà plus de stock que nécessaire sur ce produit — inutile d'en recommander pour l'instant."
+
+        lignes.append({
+            "code": r.code,
+            "designation": r.designation,
+            "stock_actuel": r.stock_actuel or 0.0,
+            "tresorerie_immobilisee": round(tresorerie, 0),
+            "motif": motif,
+        })
+
+    lignes.sort(key=lambda l: l["tresorerie_immobilisee"], reverse=True)
+    return lignes
 
 
 # ── US-E4 : Export PDF / XLSX ─────────────────────────────────────────────────

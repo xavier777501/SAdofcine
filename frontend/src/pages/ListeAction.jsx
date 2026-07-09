@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getListeAction, exportListe } from '../services/dashboard'
+import PageHeader from '../components/PageHeader'
 
 function formatFCFA(val) {
   if (!val && val !== 0) return '—'
@@ -105,12 +106,11 @@ export default function ListeAction() {
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Liste d'action</h1>
-        <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm">
-          Références à traiter, triées par urgence — cliquez sur une ligne pour voir le conseil
-        </p>
-      </div>
+      <PageHeader
+        label="Liste d'action"
+        title="Liste d'action"
+        subtitle="Références à traiter, triées par urgence — cliquez sur une ligne pour voir le conseil"
+      />
 
       {chargement && (
         <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500 text-sm py-8">

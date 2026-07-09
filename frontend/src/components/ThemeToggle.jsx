@@ -3,7 +3,7 @@ import { getTheme, setTheme } from '../services/theme'
 
 const TRANSITION_DURATION_MS = 550
 
-export default function ThemeToggle({ className = '' }) {
+export default function ThemeToggle({ className = '', dark = false }) {
   const [theme, setThemeState] = useState(getTheme)
   const buttonRef = useRef(null)
 
@@ -53,6 +53,9 @@ export default function ThemeToggle({ className = '' }) {
   }
 
   const isDark = theme === 'dark'
+  const baseClasses = dark
+    ? 'tg-tap inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-600 text-slate-300 hover:bg-white/5 transition'
+    : 'tg-tap inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition'
 
   return (
     <button
@@ -61,7 +64,7 @@ export default function ThemeToggle({ className = '' }) {
       onClick={handleClick}
       aria-label={isDark ? 'Activer le mode clair' : 'Activer le mode sombre'}
       title={isDark ? 'Mode clair' : 'Mode sombre'}
-      className={`tg-tap inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition ${className}`}
+      className={`${baseClasses} ${className}`}
     >
       {isDark ? (
         <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">

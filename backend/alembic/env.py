@@ -17,6 +17,13 @@ from app.core.config import settings
 from app.core.database import Base
 import app.models.officine
 import app.models.user
+import app.models.reference
+import app.models.vente_mensuelle
+import app.models.import_log
+import app.models.column_mapping
+import app.models.parametre_officine
+import app.models.password_reset_token
+import app.models.delai_circuit
 
 config = context.config
 
