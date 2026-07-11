@@ -11,6 +11,7 @@ import ResumeCommandes from './pages/ResumeCommandes'
 import Stock from './pages/Stock'
 import Import from './pages/Import'
 import Reglages from './pages/Reglages'
+import Aide from './pages/Aide'
 import NotFound from './pages/NotFound'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppShell from './components/AppShell'
@@ -112,6 +113,16 @@ const router = createBrowserRouter([
       <ProtectedRoute>
         <AppShell>
           <Reglages />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/aide',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <Aide />
         </AppShell>
       </ProtectedRoute>
     ),

@@ -16,6 +16,7 @@ const NIVEAUX_ECRAN = {
   '/stock': 3,
   '/import': 3,
   '/reglages': 3,
+  '/aide': 3,
 }
 
 function niveauDe(pathname) {

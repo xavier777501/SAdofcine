@@ -113,6 +113,23 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    to: '/aide',
+    label: 'Aide',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+        <path
+          d="M9.8 9.5a2.2 2.2 0 1 1 3.3 1.9c-.7.45-1.1.85-1.1 1.6v.3"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="16.3" r="0.9" fill="currentColor" />
+      </svg>
+    ),
+  },
 ]
 
 function initiales(nom) {
