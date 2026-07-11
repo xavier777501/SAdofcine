@@ -49,12 +49,15 @@ def get_z(ved: str | None, niveaux_service: Optional[dict] = None) -> float:
 
 def calc_cmm(ventes: list[float]) -> float:
     """
-    Consommation Mensuelle Moyenne = somme des 12 mois / 12.
+    Consommation Mensuelle Moyenne = somme des 12 mois / 12, arrondie à 1
+    décimale — comme dans le fichier Excel de référence (arrondi appliqué
+    avant toute utilisation dans PC/EOQ/S, vérifié champ par champ contre
+    SAD_OFFICINE_TEST2_PHARMACIE_FICTIVE.xlsx).
     Les valeurs négatives ont déjà été mises à 0 à l'import.
     """
     if not ventes:
         return 0.0
-    return sum(max(0.0, v) for v in ventes) / 12.0
+    return round(sum(max(0.0, v) for v in ventes) / 12.0, 1)
 
 
 def calc_cmmax(ventes: list[float]) -> float:

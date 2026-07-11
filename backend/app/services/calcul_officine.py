@@ -168,3 +168,53 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
         "nb_a_commander": nb_a_commander,
         "nb_rupture": nb_rupture,
     }
+
+
+def recalculer_apres_commande(officine_id, db: Session) -> dict:
+    """
+    Recalcul léger après un import de commande (cycle décade/mensuel).
+
+    Ne touche ni CMM/sigma/FSN/classe ABC ni SS/PC/EOQ/SS périodique/S : ces
+    valeurs ne dépendent que de l'historique 12 mois et des réglages, pas du
+    stock — elles restent celles du dernier import historique. Seul ce qui
+    dépend du nouveau stock_actuel est rafraîchi : statut, quantités à
+    commander, couverture et trésorerie libérée.
+    """
+    references = (
+        db.query(Reference)
+        .filter(Reference.officine_id == officine_id)
+        .all()
+    )
+    if not references:
+        return {"nb_references": 0, "nb_a_commander": 0, "nb_rupture": 0}
+
+    for ref in references:
+        stock = ref.stock_actuel or 0.0
+
+        ref.statut = calc_statut(stock, ref.ss or 0.0, ref.pc or 0.0)
+
+        qte_cycle   = calc_qte_commander(ref.niveau_recompletement or 0.0, stock)
+        qte_continu = calc_qte_commander_continu(ref.pc or 0.0, stock, ref.cmm or 0.0)
+        qte_cycle, qte_continu = appliquer_neutralisation_fsn(
+            ref.fsn, ref.ved, qte_cycle, qte_continu
+        )
+        ref.qte_a_commander       = qte_cycle
+        ref.qte_commander_continu = qte_continu
+
+        ref.couverture_jours   = calc_couverture_jours(stock, ref.cmm or 0.0)
+        ref.tresorerie_liberee = calc_tresorerie_liberee(
+            stock, ref.niveau_recompletement or 0.0, ref.prix_cession
+        )
+
+    db.flush()
+
+    nb_a_commander = sum(
+        1 for r in references if r.statut in ("RUPTURE", "CRITIQUE", "COMMANDER")
+    )
+    nb_rupture = sum(1 for r in references if r.statut == "RUPTURE")
+
+    return {
+        "nb_references": len(references),
+        "nb_a_commander": nb_a_commander,
+        "nb_rupture": nb_rupture,
+    }

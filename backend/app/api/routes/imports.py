@@ -15,7 +15,7 @@ from app.models.officine import Officine
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
 from app.schemas.imports import ImportLogOut, MappingSave
-from app.services.calcul_officine import calculer_toutes_references
+from app.services.calcul_officine import calculer_toutes_references, recalculer_apres_commande
 from app.services.file_parser import (
     CHAMPS_CIBLES,
     apply_mapping,
@@ -199,8 +199,12 @@ async def import_commande_logpharma(
 ):
     """
     Import Type 2 (Logpharma) : parse un export 'Listing de Produit à Commander',
-    met à jour le stock_actuel de chaque référence connue, puis recalcule les statuts.
-    Format fixe — aucun mappage de colonnes nécessaire.
+    met à jour le stock_actuel de chaque référence connue, puis recalcule les
+    quantités à commander. Format fixe — aucun mappage de colonnes nécessaire.
+
+    Ne touche jamais CMM/sigma/classe ABC/FSN/prix : le cahier des charges est
+    explicite (section 4bis) — "il ne met à jour que le stock actuel". Ces
+    données de fond du moteur ne viennent que de l'import historique.
     """
     content = await file.read()
     if len(content) > MAX_BYTES:
@@ -230,13 +234,9 @@ async def import_commande_logpharma(
             continue
 
         ref.stock_actuel = ligne["stock_actuel"]
-        if ligne.get("prix_cession") is not None:
-            ref.prix_cession = ligne["prix_cession"]
-        if ligne.get("prix_public") is not None:
-            ref.prix_public = ligne["prix_public"]
         nb_ok += 1
 
-    calculer_toutes_references(officine.id, db)
+    recalculer_apres_commande(officine.id, db)
 
     import_log = ImportLog(
         officine_id=officine.id,

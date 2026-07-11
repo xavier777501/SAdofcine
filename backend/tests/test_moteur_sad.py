@@ -84,7 +84,7 @@ class TestCMM:
 
     def test_ref_b_irreguliere(self):
         cmm = calc_cmm(VENTES_B)
-        assert approx(cmm, sum(VENTES_B) / 12)  # = 9/12 = 0.75
+        assert approx(cmm, round(sum(VENTES_B) / 12, 1))  # = 9/12 = 0.75 -> arrondi 0.8
 
     def test_ref_e_zero(self):
         assert calc_cmm(VENTES_E) == 0.0
@@ -92,7 +92,7 @@ class TestCMM:
     def test_negatifs_exclus(self):
         ventes_neg = [-5.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
         # le -5 devient 0 dans le calcul
-        assert approx(calc_cmm(ventes_neg), (0 + 10 * 11) / 12)
+        assert approx(calc_cmm(ventes_neg), round((0 + 10 * 11) / 12, 1))
 
     def test_ref_g_fort_volume(self):
         cmm = calc_cmm(VENTES_G)
@@ -450,3 +450,50 @@ class TestIndicateursSupplementaires:
 
     def test_tresorerie_prix_none(self):
         assert calc_tresorerie_liberee(100.0, 30.0, None) == 0.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Vérification bout-en-bout contre SAD_OFFICINE_TEST2_PHARMACIE_FICTIVE.xlsx
+# (169 références classes A/B comparées champ par champ, 0 écart une fois le
+# CMM arrondi à 1 décimale comme dans l'Excel — voir onglet MODÈLE SAD).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestConformiteFichierReference:
+    """
+    Référence TST0212 « PRODUIT RUPTURE VITAL » — MODÈLE SAD ligne 3.
+    Ventes Juin-25 à Mai-26, prix cession 25077 FCFA (circuit import : DLmoy=12/DLmax=18),
+    VED = Vital, T = 10 (décade), Y = 0, coût commande = 2500 FCFA, taux détention = 20%.
+    """
+    VENTES = [27, 22, 13, 20, 15, 26, 26, 16, 28, 12, 21, 24]
+    DL_MOY, DL_MAX = 12, 18
+    T, Y = 10, 0
+    PRIX_CESSION = 25077
+    STOCK = 0.0
+
+    def test_cmm_arrondi_comme_excel(self):
+        assert calc_cmm(self.VENTES) == 20.8
+
+    def test_sigma_identique_excel(self):
+        assert approx(calc_sigma(self.VENTES), 5.41346058963724)
+
+    def test_z_vital_identique_excel(self):
+        assert approx(get_z("Vital"), 2.32634787404084)
+
+    def test_chaine_complete_identique_excel(self):
+        cmm = calc_cmm(self.VENTES)
+        sigma = calc_sigma(self.VENTES)
+        z = get_z("Vital")
+
+        ss = calc_ss(z, sigma, self.DL_MAX)
+        pc = calc_pc(cmm, self.DL_MOY, ss)
+        statut = calc_statut(self.STOCK, ss, pc)
+        ss_p = calc_ss_periodique(z, sigma, self.DL_MAX, self.T, self.Y)
+        S = calc_niveau_recompletement(cmm, self.DL_MOY, self.T, self.Y, ss_p)
+        qte = calc_qte_commander(S, self.STOCK)
+
+        assert approx(ss, 9.75495483054836)
+        assert approx(pc, 18.0749548305484)
+        assert statut == "RUPTURE"
+        assert approx(ss_p, 12.1665662664558)
+        assert approx(S, 27.4198995997891)
+        assert qte == 27.0

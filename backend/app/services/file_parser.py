@@ -116,7 +116,7 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
     Parse un export Logpharma "Listing de Produit à Commander".
     Format fixe (3 lignes d'en-tête, 3 dernières lignes = totaux) :
       Ligne 1 : nom officine, Ligne 2 : titre, Ligne 3 : en-têtes
-    Retourne une liste de dicts {code, designation, stock_actuel, prix_cession, prix_public, circuit}.
+    Retourne une liste de dicts {code, designation, stock_actuel, sorties_periode, prix_cession, prix_public, circuit}.
     """
     try:
         df = pd.read_excel(io.BytesIO(content), header=2, dtype=str)
@@ -129,12 +129,13 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
     # Supprimer les 3 dernières lignes (totaux)
     df = df.iloc[:-3]
 
-    COL_CODE    = "Code Prod"
-    COL_DESIG   = "Désignation"
-    COL_STOCK   = "Qté Sal."
-    COL_PX_CES  = "Prix Ces."
-    COL_PX_PUB  = "Prix Public"
-    COL_CIRCUIT = "FOURNISSEUR"
+    COL_CODE     = "Code Prod"
+    COL_DESIG    = "Désignation"
+    COL_STOCK    = "Qté Sal."
+    COL_SORTIES  = "Sorties"
+    COL_PX_CES   = "Prix Ces."
+    COL_PX_PUB   = "Prix Public"
+    COL_CIRCUIT  = "FOURNISSEUR"
 
     for col in [COL_CODE, COL_DESIG, COL_STOCK]:
         if col not in df.columns:
@@ -168,6 +169,7 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
             "code": code,
             "designation": str(row.get(COL_DESIG) or "").strip() or None,
             "stock_actuel": stock,
+            "sorties_periode": _to_float(row.get(COL_SORTIES)) or 0.0,
             "prix_cession": _to_float(row.get(COL_PX_CES)),
             "prix_public":  _to_float(row.get(COL_PX_PUB)),
             "circuit":      str(row.get(COL_CIRCUIT) or "").strip() or None,
