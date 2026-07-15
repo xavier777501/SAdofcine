@@ -57,8 +57,18 @@ def _priorite(ref: Reference) -> float:
     return 11
 
 
+def _qte_effective(ref: Reference) -> float:
+    """
+    Quantité réellement retenue : celle saisie manuellement par le pharmacien
+    (section 6.7) si renseignée, sinon la suggestion du moteur.
+    """
+    if ref.qte_a_commander_override is not None:
+        return ref.qte_a_commander_override
+    return ref.qte_a_commander or 0.0
+
+
 def _valeur_fcfa(ref: Reference) -> float:
-    return (ref.qte_a_commander or 0.0) * (ref.prix_cession or 0.0)
+    return _qte_effective(ref) * (ref.prix_cession or 0.0)
 
 
 def _ligne(ref: Reference, hors_plafond: bool = False) -> dict:
@@ -70,7 +80,10 @@ def _ligne(ref: Reference, hors_plafond: bool = False) -> dict:
         "statut": ref.statut,
         "ved": ref.ved,
         "stock_actuel": ref.stock_actuel or 0.0,
-        "qte_a_commander": ref.qte_a_commander or 0.0,
+        "qte_a_commander": _qte_effective(ref),
+        "qte_a_commander_auto": ref.qte_a_commander or 0.0,
+        "qte_a_commander_override": ref.qte_a_commander_override,
+        "inclusion_manuelle": ref.inclusion_manuelle,
         "valeur_fcfa": round(_valeur_fcfa(ref), 0),
         "hors_plafond": hors_plafond,
     }
@@ -81,7 +94,13 @@ def prioriser_et_plafonner(references: list[Reference], plafond: Optional[float]
     Applique la priorisation et le plafond aux références actionnables.
     plafond=None ou <=0 : pas de restriction, tout est renvoyé dans "inclus".
     """
-    actionnables = [r for r in references if r.statut in STATUTS_ACTIONNABLES]
+    # Section 6.7 : le pharmacien garde toujours la main — une référence
+    # exclue manuellement disparaît de la commande, une référence incluse
+    # manuellement y apparaît même si le moteur ne la juge pas actionnable.
+    actionnables = [
+        r for r in references
+        if r.inclusion_manuelle == "inclure" or (r.statut in STATUTS_ACTIONNABLES and r.inclusion_manuelle != "exclure")
+    ]
 
     hors_plafond_refs = [r for r in actionnables if r.statut == "RUPTURE" and r.ved == "Vital"]
     reste = [r for r in actionnables if not (r.statut == "RUPTURE" and r.ved == "Vital")]

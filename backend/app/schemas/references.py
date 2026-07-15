@@ -3,6 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 VED_VALEURS_AUTORISEES = {"Vital", "Essentiel", "Désirable", None}
+INCLUSION_MANUELLE_VALEURS_AUTORISEES = {"inclure", "exclure", None}
 
 
 class ReferenceOut(BaseModel):
@@ -21,11 +22,26 @@ class ReferenceOut(BaseModel):
     statut: Optional[str]
     qte_a_commander: Optional[float]
     qte_commander_continu: Optional[float]
+    qte_a_commander_override: Optional[float]
+    inclusion_manuelle: Optional[str]
     risque_fournisseur_jours: int
     couverture_jours: Optional[float]
     tresorerie_liberee: Optional[float]
 
     model_config = {"from_attributes": True}
+
+
+class AjustementCommandeUpdate(BaseModel):
+    """Section 6.7 : arbitrage manuel du pharmacien sur une référence donnée."""
+    qte_a_commander_override: Optional[float] = Field(default=None, ge=0)
+    inclusion_manuelle: Optional[str] = None
+
+    @field_validator("inclusion_manuelle")
+    @classmethod
+    def valider_inclusion(cls, v):
+        if v not in INCLUSION_MANUELLE_VALEURS_AUTORISEES:
+            raise ValueError("inclusion_manuelle doit être 'inclure', 'exclure' ou null.")
+        return v
 
 
 class VedUpdate(BaseModel):

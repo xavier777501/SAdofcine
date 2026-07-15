@@ -14,6 +14,7 @@ from app.core.security import get_password_hash
 from app.models.officine import Officine
 from app.models.user import User
 from app.models.reference import Reference
+from app.services.calcul_officine import get_or_create_parametres
 
 
 @pytest.fixture(autouse=True)
@@ -115,3 +116,58 @@ class TestCoherenceTresorerie:
         # sommer les valeurs brutes de "Quoi commander" doit donner le même résultat
         # une fois arrondi à son tour, à l'arrondi flottant près.
         assert round(total_somme_brute) == kpis["tresorerie_liberee_fcfa"]
+
+
+class TestCoherenceKpiEtPlafond:
+    """
+    Section 6.7 : le KPI "Valeur commande" du Tableau de bord doit refléter ce
+    qui sera réellement commandé une fois le plafond appliqué — pas la demande
+    brute totale, sinon les deux écrans se contredisent (constaté en usage réel).
+    """
+
+    def test_kpi_respecte_le_plafond(self, client, token, db_session, officine):
+        # Deux références COMMANDER de 30 000 FCFA chacune (même priorité, classe
+        # B), sans rupture ni Vital : chacune tient seule sous le plafond, mais
+        # pas les deux ensemble.
+        for i in range(2):
+            db_session.add(Reference(
+                officine_id=officine.id, code=f"C{i}", designation=f"Produit {i}",
+                statut="COMMANDER", classe="B", fsn="Fast",
+                qte_a_commander=10, prix_cession=3000, stock_actuel=5,
+            ))
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        # Sans plafond : le KPI doit refléter la demande brute totale (60 000).
+        kpis_sans_plafond = client.get("/api/v1/dashboard/kpis", headers=headers).json()
+        assert kpis_sans_plafond["valeur_commande_fcfa"] == 60000
+
+        # Avec un plafond à 50 000 : seule la première référence rentre (30 000) —
+        # le KPI doit refléter ce montant réellement commandable, pas 60 000.
+        # Réglage posé directement en base : passer par PATCH /parametres
+        # relancerait un calcul complet du moteur, qui écraserait les données
+        # de test synthétiques (pas d'historique de ventes ici).
+        params = get_or_create_parametres(officine.id, db_session)
+        params.plafond_commande_fcfa = 50000
+        db_session.commit()
+
+        kpis_avec_plafond = client.get("/api/v1/dashboard/kpis", headers=headers).json()
+        assert kpis_avec_plafond["valeur_commande_fcfa"] == 30000
+
+        plafond = client.get("/api/v1/dashboard/commande-plafonnee", headers=headers).json()
+        montant_reel = plafond["budget_utilise"] + sum(l["valeur_fcfa"] for l in plafond["hors_plafond"])
+        assert kpis_avec_plafond["valeur_commande_fcfa"] == montant_reel
+
+    def test_kpi_respecte_exclusion_manuelle(self, client, token, db_session, officine):
+        r = Reference(
+            officine_id=officine.id, code="X1", designation="Produit exclu",
+            statut="COMMANDER", classe="B", fsn="Fast",
+            qte_a_commander=10, prix_cession=1000, stock_actuel=5,
+            inclusion_manuelle="exclure",
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        kpis = client.get("/api/v1/dashboard/kpis", headers=headers).json()
+        assert kpis["valeur_commande_fcfa"] == 0

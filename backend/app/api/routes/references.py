@@ -6,7 +6,7 @@ from app.api.deps import get_current_officine
 from app.core.database import get_db
 from app.models.officine import Officine
 from app.models.reference import Reference
-from app.schemas.references import ReferenceOut, VedUpdate, RisqueFournisseurUpdate
+from app.schemas.references import ReferenceOut, VedUpdate, RisqueFournisseurUpdate, AjustementCommandeUpdate
 from app.services.calcul_officine import calculer_toutes_references
 
 router = APIRouter(prefix="/references", tags=["Références"])
@@ -80,6 +80,28 @@ def modifier_risque_fournisseur(
     ref.risque_fournisseur_jours = data.risque_fournisseur_jours
     db.flush()
     calculer_toutes_references(officine.id, db)
+    db.commit()
+    db.refresh(ref)
+    return ref
+
+
+@router.patch("/{reference_id}/ajustement-commande", response_model=ReferenceOut)
+def modifier_ajustement_commande(
+    reference_id: str,
+    data: AjustementCommandeUpdate,
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Section 6.7 : le pharmacien garde toujours la main sur la commande — il
+    peut forcer l'inclusion ou l'exclusion d'une référence, et/ou remplacer la
+    quantité suggérée par le moteur par sa propre quantité. Aucun recalcul du
+    moteur n'est nécessaire : c'est un arbitrage manuel, pas une donnée d'entrée.
+    """
+    ref = _get_reference_ou_404(reference_id, officine, db)
+
+    ref.qte_a_commander_override = data.qte_a_commander_override
+    ref.inclusion_manuelle = data.inclusion_manuelle
     db.commit()
     db.refresh(ref)
     return ref

@@ -25,6 +25,9 @@ class LigneActionOut(BaseModel):
     sorties_derniere_commande: Optional[float]  # vendu depuis le dernier import de commande (Type 2)
     statut: str
     qte_a_commander: float
+    qte_a_commander_auto: float           # suggestion brute du moteur, avant arbitrage
+    qte_a_commander_override: Optional[float]  # quantité saisie manuellement par le pharmacien, si renseignée
+    inclusion_manuelle: Optional[str]     # "inclure" / "exclure" / null
     valeur_fcfa: float            # qte_a_commander × prix_cession
     texte_decision: str
 
@@ -61,6 +64,9 @@ class LignePlafondOut(BaseModel):
     ved: Optional[str]
     stock_actuel: float
     qte_a_commander: float
+    qte_a_commander_auto: float
+    qte_a_commander_override: Optional[float]
+    inclusion_manuelle: Optional[str]
     valeur_fcfa: float
     hors_plafond: bool
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { getReferences, updateVed, updateRisque } from '../services/references'
+import { getReferences, updateVed, updateRisque, updateAjustementCommande } from '../services/references'
 import { estNeutralise, MESSAGE_NEUTRALISE } from '../utils/recommandation'
 import PageHeader from '../components/PageHeader'
 
@@ -127,6 +127,48 @@ function RisqueCell({ value, onChange, saving }) {
   )
 }
 
+// ── Cellule arbitrage manuel (section 6.7) ────────────────────────────────────
+
+function CommandeCell({ ligne, onChange, saving }) {
+  if (ligne.inclusion_manuelle === 'exclure') {
+    return (
+      <button
+        onClick={() => onChange(null)}
+        disabled={saving}
+        title="Cette référence a été exclue manuellement de la prochaine commande"
+        className="tg-tap inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+      >
+        Exclue{saving ? '…' : ' · réinclure'}
+      </button>
+    )
+  }
+  if (ligne.inclusion_manuelle === 'inclure') {
+    return (
+      <button
+        onClick={() => onChange(null)}
+        disabled={saving}
+        title="Cette référence a été ajoutée manuellement à la prochaine commande"
+        className="tg-tap inline-flex items-center gap-1 rounded-full border border-info/40 px-2 py-0.5 text-[11px] font-medium text-info hover:bg-info-light dark:hover:bg-info/10 disabled:opacity-50"
+      >
+        Forcée{saving ? '…' : ' · annuler'}
+      </button>
+    )
+  }
+  if (ligne.statut === 'OK') {
+    return (
+      <button
+        onClick={() => onChange('inclure')}
+        disabled={saving}
+        title="Commander cette référence quand même, même si le stock est suffisant"
+        className="tg-tap rounded-full border border-slate-200 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:border-brand hover:text-brand disabled:opacity-50"
+      >
+        {saving ? '…' : '+ Ajouter'}
+      </button>
+    )
+  }
+  return <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
+}
+
 // ── Page principale ───────────────────────────────────────────────────────────
 
 export default function Stock() {
@@ -161,6 +203,18 @@ export default function Stock() {
     setSaving(s => ({ ...s, [ref.id]: 'risque' }))
     try {
       const updated = await updateRisque(ref.id, jours)
+      setRefs(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r))
+    } catch { /* silencieux */ }
+    finally { setSaving(s => { const n = { ...s }; delete n[ref.id]; return n }) }
+  }
+
+  async function handleCommandeChange(ref, inclusionManuelle) {
+    setSaving(s => ({ ...s, [ref.id]: 'commande' }))
+    try {
+      const updated = await updateAjustementCommande(ref.id, {
+        qteOverride: ref.qte_a_commander_override,
+        inclusionManuelle,
+      })
       setRefs(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r))
     } catch { /* silencieux */ }
     finally { setSaving(s => { const n = { ...s }; delete n[ref.id]; return n }) }
@@ -271,12 +325,13 @@ export default function Stock() {
                   <th className="px-4 py-3 text-right">Seuil de commande</th>
                   <th className="px-4 py-3 text-right">Qté cmd.</th>
                   <th className="px-4 py-3 text-right">Risque frs.</th>
+                  <th className="px-4 py-3">Commande</th>
                 </tr>
               </thead>
               <tbody>
                 {refsFiltrees.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-4 py-10 text-center text-slate-400 dark:text-slate-500 text-sm">
+                    <td colSpan={13} className="px-4 py-10 text-center text-slate-400 dark:text-slate-500 text-sm">
                       Aucune référence pour ces filtres.
                     </td>
                   </tr>
@@ -365,6 +420,14 @@ export default function Stock() {
                             value={r.risque_fournisseur_jours}
                             saving={saving[r.id] === 'risque'}
                             onChange={jours => handleRisqueChange(r, jours)}
+                          />
+                        </td>
+                        {/* Arbitrage manuel commande (section 6.7) */}
+                        <td className="px-4 py-2.5">
+                          <CommandeCell
+                            ligne={r}
+                            saving={saving[r.id] === 'commande'}
+                            onChange={inclusionManuelle => handleCommandeChange(r, inclusionManuelle)}
                           />
                         </td>
                       </tr>

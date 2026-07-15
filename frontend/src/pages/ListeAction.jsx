@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getListeAction, exportListe, getCommandePlafonnee } from '../services/dashboard'
+import { updateAjustementCommande } from '../services/references'
 import PageHeader from '../components/PageHeader'
 
 function formatFCFA(val) {
@@ -15,6 +16,8 @@ const STATUT_CFG = {
   RUPTURE:   { bg: 'bg-danger-light dark:bg-danger/10',   text: 'text-danger',                    badge: 'bg-danger text-white',                        label: 'Rupture' },
   CRITIQUE:  { bg: 'bg-orange-50 dark:bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-500 text-white',               label: 'Critique' },
   COMMANDER: { bg: 'bg-yellow-50 dark:bg-yellow-500/10', text: 'text-yellow-700 dark:text-yellow-400', badge: 'bg-yellow-400 dark:bg-yellow-500 text-slate-900', label: 'Commander' },
+  // Référence ajoutée manuellement à la commande (section 6.7) alors que son statut réel est OK.
+  OK:        { bg: 'bg-brand-light dark:bg-brand/10',    text: 'text-brand-dark dark:text-brand', badge: 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand', label: 'Ajout manuel' },
 }
 
 const CLASSE_CFG = {
@@ -23,7 +26,94 @@ const CLASSE_CFG = {
   C: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 }
 
-function LigneAction({ ligne, expanded, onToggle }) {
+// Section 6.7 : "le pharmacien garde toujours la main" — quantité modifiable
+// et inclusion/exclusion forcée, disponibles dans le panneau déplié de chaque
+// référence, aussi bien dans la liste simple que dans la vue plafonnée.
+function ArbitrageManuel({ ligne, onAjuster, saving, reportee = false }) {
+  const [qteDraft, setQteDraft] = useState(String(ligne.qte_a_commander ?? 0))
+  const qteModifiee = qteDraft !== '' && Number(qteDraft) !== (ligne.qte_a_commander ?? 0)
+
+  useEffect(() => {
+    setQteDraft(String(ligne.qte_a_commander ?? 0))
+  }, [ligne.qte_a_commander])
+
+  function enregistrerQte() {
+    const val = Number(qteDraft)
+    if (isNaN(val) || val < 0) return
+    onAjuster({ qteOverride: val, inclusionManuelle: ligne.inclusion_manuelle })
+  }
+
+  function revenirALaSuggestion() {
+    setQteDraft(String(ligne.qte_a_commander_auto ?? 0))
+    onAjuster({ qteOverride: null, inclusionManuelle: ligne.inclusion_manuelle })
+  }
+
+  function appliquerInclusion(valeur) {
+    onAjuster({ qteOverride: ligne.qte_a_commander_override, inclusionManuelle: valeur })
+  }
+
+  let inclusionBouton
+  if (ligne.inclusion_manuelle === 'exclure') {
+    inclusionBouton = { label: 'Réinclure dans cette commande', action: () => appliquerInclusion(null), style: 'brand' }
+  } else if (ligne.inclusion_manuelle === 'inclure') {
+    inclusionBouton = { label: "Annuler l'inclusion forcée", action: () => appliquerInclusion(null), style: 'neutre' }
+  } else if (reportee) {
+    inclusionBouton = { label: 'Inclure quand même (hors plafond)', action: () => appliquerInclusion('inclure'), style: 'brand' }
+  } else {
+    inclusionBouton = { label: 'Exclure de cette commande', action: () => appliquerInclusion('exclure'), style: 'danger' }
+  }
+
+  const styleBouton = {
+    brand: 'border-brand text-brand hover:bg-brand-light dark:hover:bg-brand/10',
+    neutre: 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700',
+    danger: 'border-danger/50 text-danger hover:bg-danger-light dark:hover:bg-danger/10',
+  }[inclusionBouton.style]
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
+      <div className="flex items-center gap-1.5">
+        <label className="text-xs text-slate-500 dark:text-slate-400">Quantité à commander :</label>
+        <input
+          type="number"
+          min="0"
+          disabled={saving}
+          value={qteDraft}
+          onChange={(e) => setQteDraft(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          className="w-20 text-sm text-right rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50"
+        />
+        {qteModifiee && (
+          <button
+            onClick={(e) => { e.stopPropagation(); enregistrerQte() }}
+            disabled={saving}
+            className="tg-tap rounded-lg bg-brand-gradient px-2.5 py-1 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+          >
+            Enregistrer
+          </button>
+        )}
+        {ligne.qte_a_commander_override != null && (
+          <button
+            onClick={(e) => { e.stopPropagation(); revenirALaSuggestion() }}
+            disabled={saving}
+            className="tg-tap text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-50"
+            title={`Suggestion du moteur : ${formatNb(ligne.qte_a_commander_auto)}`}
+          >
+            (ajustée manuellement — revenir à la suggestion)
+          </button>
+        )}
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); inclusionBouton.action() }}
+        disabled={saving}
+        className={`tg-tap rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${styleBouton}`}
+      >
+        {inclusionBouton.label}
+      </button>
+    </div>
+  )
+}
+
+function LigneAction({ ligne, expanded, onToggle, onAjuster, saving }) {
   const cfg = STATUT_CFG[ligne.statut] || {}
   const classeCfg = CLASSE_CFG[ligne.classe] || CLASSE_CFG.C
 
@@ -56,6 +146,9 @@ function LigneAction({ ligne, expanded, onToggle }) {
         </td>
         <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-200">
           {formatNb(ligne.qte_a_commander)}
+          {ligne.qte_a_commander_override != null && (
+            <span className="ml-1 text-[10px] font-normal text-info" title="Quantité ajustée manuellement">●</span>
+          )}
         </td>
         <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
           {ligne.valeur_fcfa > 0 ? formatFCFA(ligne.valeur_fcfa) : '—'}
@@ -75,6 +168,7 @@ function LigneAction({ ligne, expanded, onToggle }) {
                 {formatNb(ligne.sorties_derniere_commande)} unité{ligne.sorties_derniere_commande > 1 ? 's' : ''} vendue{ligne.sorties_derniere_commande > 1 ? 's' : ''} depuis la dernière commande
               </p>
             )}
+            <ArbitrageManuel ligne={ligne} onAjuster={onAjuster} saving={saving} />
           </td>
         </tr>
       )}
@@ -82,45 +176,70 @@ function LigneAction({ ligne, expanded, onToggle }) {
   )
 }
 
-function LignePlafond({ ligne, reportee }) {
+function LignePlafond({ ligne, reportee, expanded, onToggle, onAjuster, saving }) {
   const cfg = STATUT_CFG[ligne.statut] || {}
   const classeCfg = CLASSE_CFG[ligne.classe] || CLASSE_CFG.C
 
   return (
-    <tr className={`border-b border-slate-100 dark:border-slate-700/50 ${reportee ? 'opacity-50' : ''}`}>
-      <td className="px-4 py-2.5">
-        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.badge}`}>
-          {cfg.label}
-        </span>
-        {ligne.hors_plafond && (
-          <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-danger text-white">
-            HORS PLAFOND
+    <>
+      <tr
+        className={`border-b border-slate-100 dark:border-slate-700/50 cursor-pointer transition-colors ${expanded ? cfg.bg : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'} ${reportee ? 'opacity-50' : ''}`}
+        onClick={onToggle}
+      >
+        <td className="px-4 py-2.5">
+          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.badge}`}>
+            {cfg.label}
           </span>
-        )}
-      </td>
-      <td className="px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-        {ligne.code}
-      </td>
-      <td className="px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 max-w-xs">
-        <span className="line-clamp-1">{ligne.designation}</span>
-      </td>
-      <td className="px-4 py-2.5 text-center">
-        {ligne.classe && (
-          <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${classeCfg}`}>
-            {ligne.classe}
-          </span>
-        )}
-      </td>
-      <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
-        {formatNb(ligne.stock_actuel)}
-      </td>
-      <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-200">
-        {formatNb(ligne.qte_a_commander)}
-      </td>
-      <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
-        {ligne.valeur_fcfa > 0 ? formatFCFA(ligne.valeur_fcfa) : '—'}
-      </td>
-    </tr>
+          {ligne.hors_plafond && (
+            <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-danger text-white">
+              HORS PLAFOND
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          {ligne.code}
+        </td>
+        <td className="px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 max-w-xs">
+          <span className="line-clamp-1">{ligne.designation}</span>
+        </td>
+        <td className="px-4 py-2.5 text-center">
+          {ligne.classe && (
+            <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${classeCfg}`}>
+              {ligne.classe}
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
+          {formatNb(ligne.stock_actuel)}
+        </td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-200">
+          {formatNb(ligne.qte_a_commander)}
+          {ligne.qte_a_commander_override != null && (
+            <span className="ml-1 text-[10px] font-normal text-info" title="Quantité ajustée manuellement">●</span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
+          {ligne.valeur_fcfa > 0 ? formatFCFA(ligne.valeur_fcfa) : '—'}
+        </td>
+        <td className="px-4 py-2.5 text-center w-8">
+          <svg viewBox="0 0 16 16" className={`w-4 h-4 text-slate-400 transition-transform duration-200 inline ${expanded ? 'rotate-180' : ''}`} fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className={cfg.bg}>
+          <td colSpan={8} className="px-4 py-2.5 space-y-1">
+            {reportee && (
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Reportée à la prochaine commande faute de budget disponible — vous pouvez l'inclure quand même, hors plafond.
+              </p>
+            )}
+            <ArbitrageManuel ligne={ligne} onAjuster={onAjuster} saving={saving} reportee={reportee} />
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
@@ -131,9 +250,10 @@ export default function ListeAction() {
   const [exportEnCours, setExportEnCours] = useState(null)
   const [ligneOuverte, setLigneOuverte] = useState(null)
   const [filtreStatut, setFiltreStatut] = useState('TOUS')
+  const [ajustementEnCours, setAjustementEnCours] = useState(null)
 
-  const charger = useCallback(async () => {
-    setChargement(true)
+  const charger = useCallback(async (avecSpinner = true) => {
+    if (avecSpinner) setChargement(true)
     try {
       const [liste, plafond] = await Promise.all([
         getListeAction(),
@@ -142,9 +262,9 @@ export default function ListeAction() {
       setListe(liste)
       setPlafond(plafond)
     } catch {
-      setListe([])
+      if (avecSpinner) setListe([])
     } finally {
-      setChargement(false)
+      if (avecSpinner) setChargement(false)
     }
   }, [])
 
@@ -155,6 +275,18 @@ export default function ListeAction() {
   async function handleExport(format) {
     setExportEnCours(format)
     try { await exportListe(format) } catch { /* silencieux */ } finally { setExportEnCours(null) }
+  }
+
+  async function handleAjuster(id, { qteOverride, inclusionManuelle }) {
+    setAjustementEnCours(id)
+    try {
+      await updateAjustementCommande(id, { qteOverride, inclusionManuelle })
+      await charger(false)
+    } catch {
+      /* silencieux */
+    } finally {
+      setAjustementEnCours(null)
+    }
   }
 
   const listeFiltre = filtreStatut === 'TOUS' ? liste : liste.filter(l => l.statut === filtreStatut)
@@ -222,24 +354,47 @@ export default function ListeAction() {
                   <th className="px-4 py-2.5 text-right">Stock</th>
                   <th className="px-4 py-2.5 text-right">Qté à cmd.</th>
                   <th className="px-4 py-2.5 text-right">Valeur</th>
+                  <th className="px-4 py-2.5 w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {plafond.hors_plafond.map((ligne) => (
-                  <LignePlafond key={ligne.id} ligne={ligne} />
+                  <LignePlafond
+                    key={ligne.id}
+                    ligne={ligne}
+                    expanded={ligneOuverte === ligne.id}
+                    onToggle={() => setLigneOuverte((prev) => (prev === ligne.id ? null : ligne.id))}
+                    onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                    saving={ajustementEnCours === ligne.id}
+                  />
                 ))}
                 {plafond.inclus.map((ligne) => (
-                  <LignePlafond key={ligne.id} ligne={ligne} />
+                  <LignePlafond
+                    key={ligne.id}
+                    ligne={ligne}
+                    expanded={ligneOuverte === ligne.id}
+                    onToggle={() => setLigneOuverte((prev) => (prev === ligne.id ? null : ligne.id))}
+                    onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                    saving={ajustementEnCours === ligne.id}
+                  />
                 ))}
                 {plafond.reporte.length > 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-2 bg-slate-50 dark:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center border-y border-slate-200 dark:border-slate-700">
+                    <td colSpan={8} className="px-4 py-2 bg-slate-50 dark:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center border-y border-slate-200 dark:border-slate-700">
                       ↓ Reportées à la prochaine commande — plafond atteint ({formatFCFA(plafond.montant_reporte)}) ↓
                     </td>
                   </tr>
                 )}
                 {plafond.reporte.map((ligne) => (
-                  <LignePlafond key={ligne.id} ligne={ligne} reportee />
+                  <LignePlafond
+                    key={ligne.id}
+                    ligne={ligne}
+                    reportee
+                    expanded={ligneOuverte === ligne.id}
+                    onToggle={() => setLigneOuverte((prev) => (prev === ligne.id ? null : ligne.id))}
+                    onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                    saving={ajustementEnCours === ligne.id}
+                  />
                 ))}
               </tbody>
             </table>
@@ -334,6 +489,8 @@ export default function ListeAction() {
                       ligne={ligne}
                       expanded={ligneOuverte === ligne.id}
                       onToggle={() => setLigneOuverte(prev => prev === ligne.id ? null : ligne.id)}
+                      onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                      saving={ajustementEnCours === ligne.id}
                     />
                   ))
                 )}

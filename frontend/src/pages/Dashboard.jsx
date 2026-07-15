@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getOfficineNom } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
-import { getKpis } from '../services/dashboard'
+import { getKpis, getCommandePlafonnee } from '../services/dashboard'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import RepartitionStockDonut from '../components/RepartitionStockDonut'
 import VentesM1Table from '../components/VentesM1Table'
@@ -22,7 +22,7 @@ function formatDateHeureFr(date) {
 
 // ── Sous-composants ───────────────────────────────────────────────────────────
 
-function KpiTile({ label, value, borderColor, badge, iconColor, icon }) {
+function KpiTile({ label, value, borderColor, badge, iconColor, icon, sousLabel }) {
   return (
     <div className={`group relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 border-l-4 ${borderColor} pl-5 pr-4 py-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5`}>
       <span className={`absolute top-3.5 right-3.5 flex h-8 w-8 items-center justify-center rounded-full ${badge} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>
@@ -30,6 +30,9 @@ function KpiTile({ label, value, borderColor, badge, iconColor, icon }) {
       </span>
       <p className="text-3xl font-extrabold tabular-nums leading-none text-slate-900 dark:text-slate-100">{value}</p>
       <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
+      {sousLabel && (
+        <p className="mt-0.5 text-[11px] font-medium text-info">{sousLabel}</p>
+      )}
     </div>
   )
 }
@@ -39,13 +42,19 @@ function KpiTile({ label, value, borderColor, badge, iconColor, icon }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const [kpis, setKpis] = useState(null)
+  const [plafond, setPlafond] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [maintenant, setMaintenant] = useState(new Date())
 
   const charger = useCallback(async () => {
     setChargement(true)
     try {
-      setKpis(await getKpis())
+      const [kpis, plafond] = await Promise.all([
+        getKpis(),
+        getCommandePlafonnee().catch(() => null),
+      ])
+      setKpis(kpis)
+      setPlafond(plafond)
     } catch {
       setKpis(null)
     } finally {
@@ -143,6 +152,7 @@ export default function Dashboard() {
           <KpiTile
             label="Valeur commande"
             value={kpis.valeur_commande_fcfa > 0 ? formatFCFA(kpis.valeur_commande_fcfa) : '—'}
+            sousLabel={plafond && !plafond.sans_restriction ? `Plafonnée à ${formatFCFA(plafond.plafond)}` : null}
             borderColor="border-l-info"
             badge="bg-info-light dark:bg-info/10"
             iconColor="text-info"

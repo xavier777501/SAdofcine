@@ -10,7 +10,16 @@ import {
   runImportHistoriqueLogpharma,
   runImportHistoriqueAnnuel,
   getEtatImport,
+  previewImport,
+  getMapping,
+  saveMapping,
+  runImport,
+  autoMatchMapping,
+  revalidateMapping,
+  CHAMPS_LABELS,
+  CHAMPS_OBLIGATOIRES,
 } from '../services/imports'
+import { lancerCalcul } from '../services/calcul'
 
 const NOMS_MOIS_AFFICHAGE = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -49,6 +58,23 @@ export default function Import() {
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [step, setStep] = useState(1)
+
+  // Sous-flux "j'ai un fichier avec les 12 mois déjà en colonnes" (mappage
+  // manuel, section 9 du cahier des charges — import tolérant) : une
+  // alternative au format fixe, pour une pharmacie dont l'export diffère.
+  const [mappageStep, setMappageStep] = useState(1)
+  const [mappageFile, setMappageFile] = useState(null)
+  const [mappageColonnes, setMappageColonnes] = useState([])
+  const [mappageChampsCibles, setMappageChampsCibles] = useState([])
+  const [mappageMapping, setMappageMapping] = useState({})
+  const [mappageAutoMapped, setMappageAutoMapped] = useState(false)
+  const [mappageChampsARevoir, setMappageChampsARevoir] = useState([])
+  const [mappageResult, setMappageResult] = useState(null)
+  const [mappageCalculResult, setMappageCalculResult] = useState(null)
+  const [mappageLoadingStep, setMappageLoadingStep] = useState(false)
+  const [mappageImporting, setMappageImporting] = useState(false)
+  const [mappageError, setMappageError] = useState('')
+  const [mappageShowErreurs, setMappageShowErreurs] = useState(false)
 
   // Charge en arrière-plan l'état réel de l'historique (combien de mois sont
   // déjà enregistrés côté serveur), pour que l'écran affiché après le choix
@@ -136,6 +162,92 @@ export default function Import() {
     }
   }
 
+  async function handleMappageFileSelected(selectedFile) {
+    if (!selectedFile) return
+    setMappageError('')
+    setMappageFile(selectedFile)
+    setMappageLoadingStep(true)
+    try {
+      const preview = await previewImport(selectedFile)
+      setMappageColonnes(preview.colonnes)
+
+      const { champs_cibles, mapping: savedMapping } = await getMapping()
+      setMappageChampsCibles(champs_cibles)
+
+      if (Object.keys(savedMapping).length > 0) {
+        const { valide, aRevoir } = revalidateMapping(savedMapping, preview.colonnes)
+        if (aRevoir.length > 0) {
+          const detectePourManquants = autoMatchMapping(preview.colonnes, aRevoir)
+          setMappageMapping({ ...valide, ...detectePourManquants })
+          setMappageChampsARevoir(aRevoir)
+        } else {
+          setMappageMapping(valide)
+          setMappageChampsARevoir([])
+        }
+        setMappageAutoMapped(false)
+      } else {
+        const detecte = autoMatchMapping(preview.colonnes, champs_cibles)
+        setMappageMapping(detecte)
+        setMappageAutoMapped(Object.keys(detecte).length > 0)
+        setMappageChampsARevoir([])
+      }
+
+      setMappageStep(2)
+    } catch (err) {
+      setMappageError(getErrorMessage(err, "Impossible de lire ce fichier."))
+      setMappageFile(null)
+    } finally {
+      setMappageLoadingStep(false)
+    }
+  }
+
+  function updateMappageChamp(champ, colonne) {
+    setMappageMapping((prev) => ({ ...prev, [champ]: colonne }))
+  }
+
+  function mappageIncomplet() {
+    return CHAMPS_OBLIGATOIRES.some((champ) => !mappageMapping[champ])
+  }
+
+  async function handleMappageSaveAndImport() {
+    setMappageError('')
+    setMappageLoadingStep(true)
+    try {
+      await saveMapping(mappageMapping)
+      setMappageImporting(true)
+      const result = await runImport(mappageFile)
+      setMappageResult(result)
+      setMappageShowErreurs(false)
+
+      try {
+        const calcul = await lancerCalcul()
+        setMappageCalculResult(calcul)
+      } catch {
+        setMappageCalculResult(null)
+      }
+
+      setMappageImporting(false)
+      setMappageStep(3)
+    } catch (err) {
+      setMappageImporting(false)
+      setMappageError(getErrorMessage(err, "Impossible de lancer l'import."))
+    } finally {
+      setMappageLoadingStep(false)
+    }
+  }
+
+  function handleMappageRestart() {
+    setMappageStep(1)
+    setMappageFile(null)
+    setMappageColonnes([])
+    setMappageResult(null)
+    setMappageCalculResult(null)
+    setMappageImporting(false)
+    setMappageAutoMapped(false)
+    setMappageChampsARevoir([])
+    setMappageError('')
+  }
+
   function handleRestart() {
     setStep(1)
     setTypeImport(null)
@@ -147,6 +259,7 @@ export default function Import() {
     setImportResult(null)
     setImporting(false)
     setError('')
+    handleMappageRestart()
     chargerEtatHistorique()
   }
 
@@ -413,6 +526,148 @@ export default function Import() {
                     onChange={(e) => handleFileSelectedAnnuel(e.target.files?.[0])}
                   />
                 </label>
+              </div>
+            </details>
+
+            <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4">
+              <summary className="text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+                J'ai un fichier avec les 12 mois déjà en colonnes (mappage manuel)
+              </summary>
+              <div className="mt-3 space-y-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pour une pharmacie dont l'export historique n'a pas le même format que le fichier Logpharma standard
+                  — un seul fichier avec une colonne par mois. Vous indiquez une fois quelle colonne correspond à quoi.
+                </p>
+
+                {mappageError && (
+                  <p className="text-xs text-danger">{mappageError}</p>
+                )}
+
+                {mappageImporting && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Import en cours…</p>
+                )}
+
+                {!mappageImporting && mappageStep === 1 && (
+                  <label className="tg-tap inline-block rounded-lg border border-slate-400 dark:border-slate-500 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer transition hover:bg-white dark:hover:bg-slate-800">
+                    {mappageLoadingStep ? 'Lecture en cours…' : 'Choisir le fichier'}
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      disabled={mappageLoadingStep}
+                      onChange={(e) => handleMappageFileSelected(e.target.files?.[0])}
+                    />
+                  </label>
+                )}
+
+                {!mappageImporting && mappageStep === 2 && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Fichier : <span className="font-medium text-slate-700 dark:text-slate-300">{mappageFile?.name}</span>
+                    </p>
+                    {mappageAutoMapped && (
+                      <p className="rounded-lg bg-info-light dark:bg-info/10 border border-info/30 text-info text-xs px-3 py-2">
+                        Mappage détecté automatiquement — vérifiez et corrigez si besoin.
+                      </p>
+                    )}
+                    {mappageChampsARevoir.length > 0 && (
+                      <p className="rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-300 dark:border-orange-500/40 text-orange-700 dark:text-orange-400 text-xs px-3 py-2">
+                        Certaines colonnes ont changé depuis le dernier import — vérifiez les champs surlignés.
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      {mappageChampsCibles.map((champ) => {
+                        const obligatoire = CHAMPS_OBLIGATOIRES.includes(champ)
+                        const aRevoir = mappageChampsARevoir.includes(champ)
+                        return (
+                          <div key={champ} className="flex items-center gap-2">
+                            <label className="w-48 shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400">
+                              {CHAMPS_LABELS[champ] || champ}
+                              {obligatoire && <span className="text-danger"> *</span>}
+                            </label>
+                            <select
+                              value={mappageMapping[champ] || ''}
+                              onChange={(e) => updateMappageChamp(champ, e.target.value)}
+                              className={`flex-1 rounded-lg border px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand ${
+                                aRevoir
+                                  ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                                  : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
+                              }`}
+                            >
+                              <option value="">— Non mappé —</option>
+                              {mappageColonnes.map((col) => (
+                                <option key={col} value={col}>{col}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        onClick={handleMappageRestart}
+                        className="tg-tap rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        onClick={handleMappageSaveAndImport}
+                        disabled={mappageLoadingStep || mappageIncomplet()}
+                        className="tg-tap rounded-lg bg-brand-gradient px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-brand disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {mappageLoadingStep ? 'Import en cours…' : "Sauvegarder et importer"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!mappageImporting && mappageStep === 3 && mappageResult && (
+                  <div className="space-y-3">
+                    <div className="flex gap-3">
+                      <div className="flex-1 rounded-lg bg-brand-light dark:bg-brand/10 border border-brand/30 px-3 py-2 text-center">
+                        <p className="text-lg font-semibold text-brand-dark dark:text-brand">{mappageResult.nb_lignes_ok ?? 0}</p>
+                        <p className="text-[11px] text-brand-dark dark:text-brand">lignes importées</p>
+                      </div>
+                      <div className="flex-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-300 dark:border-orange-500/40 px-3 py-2 text-center">
+                        <p className="text-lg font-semibold text-orange-600 dark:text-orange-400">{mappageResult.nb_lignes_erreur ?? 0}</p>
+                        <p className="text-[11px] text-orange-600 dark:text-orange-400">lignes en erreur</p>
+                      </div>
+                    </div>
+                    {mappageCalculResult && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {mappageCalculResult.nb_references} références recalculées — {mappageCalculResult.nb_a_commander} à commander
+                      </p>
+                    )}
+                    {mappageResult.nb_lignes_erreur > 0 && (
+                      <div>
+                        <button
+                          onClick={() => setMappageShowErreurs((prev) => !prev)}
+                          className="tg-tap inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                        >
+                          {mappageShowErreurs ? 'Masquer les erreurs' : 'Voir les erreurs'}
+                          <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 transition-transform ${mappageShowErreurs ? 'rotate-180' : ''}`} fill="none" aria-hidden="true">
+                            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                        {mappageShowErreurs && (
+                          <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto text-xs">
+                            {(mappageResult.erreurs_detail ? JSON.parse(mappageResult.erreurs_detail) : []).map((e, i) => (
+                              <li key={i} className="rounded bg-white dark:bg-slate-900/60 px-2 py-1.5 text-slate-600 dark:text-slate-300">
+                                {e.ligne ? `Ligne ${e.ligne} — ` : ''}{e.raison}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                    <button
+                      onClick={handleMappageRestart}
+                      className="tg-tap inline-flex items-center gap-1.5 rounded-lg border border-brand px-3 py-1.5 text-xs font-semibold text-brand transition-colors hover:bg-brand-light dark:hover:bg-brand/10"
+                    >
+                      Importer un autre fichier
+                    </button>
+                  </div>
+                )}
               </div>
             </details>
 

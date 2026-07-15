@@ -71,7 +71,8 @@ def token(client, user):
     return response.json()["access_token"]
 
 
-def _ref(officine_id, code, statut, ved=None, classe="A", fsn="Fast", qte=10, prix=1000):
+def _ref(officine_id, code, statut, ved=None, classe="A", fsn="Fast", qte=10, prix=1000,
+         qte_override=None, inclusion=None):
     return Reference(
         officine_id=officine_id,
         code=code,
@@ -81,6 +82,8 @@ def _ref(officine_id, code, statut, ved=None, classe="A", fsn="Fast", qte=10, pr
         classe=classe,
         fsn=fsn,
         qte_a_commander=qte,
+        qte_a_commander_override=qte_override,
+        inclusion_manuelle=inclusion,
         prix_cession=prix,
         stock_actuel=5,
     )
@@ -158,6 +161,41 @@ class TestPrioriserEtPlafonner:
         assert resultat["hors_plafond"] == []
         assert resultat["inclus"] == []
         assert resultat["reporte"] == []
+
+
+class TestArbitrageManuel:
+    """Section 6.7 : le pharmacien garde toujours la main sur la commande."""
+
+    def test_exclusion_manuelle_retire_de_toutes_les_listes(self, officine):
+        refs = [
+            _ref(officine.id, "VIT1", "RUPTURE", ved="Vital", qte=10, prix=1000, inclusion="exclure"),
+            _ref(officine.id, "CMD1", "COMMANDER", classe="B", qte=10, prix=1000, inclusion="exclure"),
+        ]
+        resultat = prioriser_et_plafonner(refs, plafond=None)
+        assert resultat["hors_plafond"] == []
+        assert resultat["inclus"] == []
+        assert resultat["reporte"] == []
+
+    def test_inclusion_manuelle_force_une_reference_ok(self, officine):
+        refs = [_ref(officine.id, "OK1", "OK", classe="A", qte=0, prix=1000, inclusion="inclure")]
+        resultat = prioriser_et_plafonner(refs, plafond=None)
+        assert [l["code"] for l in resultat["inclus"]] == ["OK1"]
+
+    def test_override_quantite_remplace_la_suggestion(self, officine):
+        refs = [_ref(officine.id, "A", "COMMANDER", classe="B", qte=10, prix=1000, qte_override=25)]
+        resultat = prioriser_et_plafonner(refs, plafond=None)
+        ligne = resultat["inclus"][0]
+        assert ligne["qte_a_commander"] == 25
+        assert ligne["qte_a_commander_auto"] == 10
+        assert ligne["valeur_fcfa"] == 25000
+
+    def test_override_quantite_impacte_le_calcul_du_plafond(self, officine):
+        # Suggestion moteur = 1 (1000 FCFA), mais le pharmacien force 5 (5000 FCFA) :
+        # le plafond doit se baser sur le montant réellement retenu.
+        refs = [_ref(officine.id, "A", "COMMANDER", classe="B", qte=1, prix=1000, qte_override=5)]
+        resultat = prioriser_et_plafonner(refs, plafond=4000)
+        assert resultat["inclus"] == []
+        assert [l["code"] for l in resultat["reporte"]] == ["A"]
 
 
 class TestEndpointCommandePlafonnee:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 import io
 
@@ -32,7 +32,10 @@ def _lignes_action(officine_id, db: Session) -> list[dict]:
         db.query(Reference)
         .filter(
             Reference.officine_id == officine_id,
-            Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"]),
+            or_(
+                Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"]),
+                Reference.inclusion_manuelle == "inclure",
+            ),
         )
         .all()
     )
@@ -40,6 +43,10 @@ def _lignes_action(officine_id, db: Session) -> list[dict]:
     # US-D8 : une référence Non-moving non Vitale a sa quantité neutralisée à 0
     # et n'a donc rien à faire dans la liste d'action (section 7 du cahier des charges).
     refs = [r for r in refs if not (r.fsn == "Non-moving" and r.ved != "Vital")]
+
+    # Section 6.7 : le pharmacien garde toujours la main — une exclusion
+    # manuelle retire la référence de la liste, quel que soit son statut.
+    refs = [r for r in refs if r.inclusion_manuelle != "exclure"]
 
     ref_ids = [r.id for r in refs]
     ventes_m1_rows = (
@@ -51,7 +58,8 @@ def _lignes_action(officine_id, db: Session) -> list[dict]:
 
     lignes = []
     for r in refs:
-        qte = r.qte_a_commander or 0.0
+        qte_auto = r.qte_a_commander or 0.0
+        qte = r.qte_a_commander_override if r.qte_a_commander_override is not None else qte_auto
         valeur = qte * (r.prix_cession or 0.0)
         lignes.append({
             "id":            str(r.id),
@@ -66,8 +74,15 @@ def _lignes_action(officine_id, db: Session) -> list[dict]:
             "sorties_derniere_commande": r.sorties_derniere_commande,
             "statut":        r.statut,
             "qte_a_commander": qte,
+            "qte_a_commander_auto": qte_auto,
+            "qte_a_commander_override": r.qte_a_commander_override,
+            "inclusion_manuelle": r.inclusion_manuelle,
             "valeur_fcfa":   valeur,
-            "texte_decision": generer_texte(r.statut, r.ved, r.fsn),
+            "texte_decision": (
+                "Ajouté manuellement à la commande par le pharmacien."
+                if r.inclusion_manuelle == "inclure" and r.statut not in ("RUPTURE", "CRITIQUE", "COMMANDER")
+                else generer_texte(r.statut, r.ved, r.fsn)
+            ),
         })
 
     lignes.sort(key=lambda l: STATUT_ORDRE.get(l["statut"], 99))
@@ -92,11 +107,16 @@ def get_kpis(
     nb_critique  = sum(1 for r in actionnables if r.statut == "CRITIQUE")
     nb_commander = sum(1 for r in actionnables if r.statut == "COMMANDER")
 
-    valeur = sum(
-        (r.qte_a_commander or 0.0) * (r.prix_cession or 0.0)
-        for r in actionnables
-        if r.statut in ("RUPTURE", "CRITIQUE", "COMMANDER")
-    )
+    # La valeur affichée doit être celle qui sera réellement commandée : on
+    # applique donc le même plafond budgétaire (et les mêmes arbitrages
+    # manuels) que la Liste d'action et "Quoi commander" — sinon le Tableau
+    # de bord annonce un montant que le plafond empêchera de commander
+    # (section 6.7 : les deux écrans doivent raconter la même histoire).
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+    plafonnee = prioriser_et_plafonner(actionnables, params.plafond_commande_fcfa)
+    valeur = plafonnee["budget_utilise"] + sum(l["valeur_fcfa"] for l in plafonnee["hors_plafond"])
+
     tresorerie = sum(r.tresorerie_liberee or 0.0 for r in refs)
 
     return KpisOut(

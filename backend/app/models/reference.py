@@ -42,3 +42,7 @@ class Reference(BaseModel):
     statut     = Column(String, nullable=True)    # RUPTURE / CRITIQUE / COMMANDER / OK
     couverture_jours = Column(Float, nullable=True)
     tresorerie_liberee = Column(Float, nullable=True)
+
+    # --- Arbitrage manuel du pharmacien (section 6.7 : "garde toujours la main") ---
+    qte_a_commander_override = Column(Float, nullable=True)  # remplace la quantité suggérée si renseignée
+    inclusion_manuelle = Column(String, nullable=True)       # "inclure" / "exclure" / None (suivi automatique)
