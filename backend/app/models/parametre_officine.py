@@ -36,3 +36,8 @@ class ParametreOfficine(BaseModel):
     niveau_service_essentiel      = Column(Float, nullable=False, default=0.95)
     niveau_service_desirable      = Column(Float, nullable=False, default=0.90)
     niveau_service_non_renseigne  = Column(Float, nullable=False, default=0.95)
+
+    # Plafond budgétaire de commande (FCFA), optionnel — section 6.7 du cahier
+    # des charges. None/vide = pas de restriction, toutes les références
+    # recommandées sont affichées sans limite.
+    plafond_commande_fcfa = Column(Float, nullable=True, default=None)

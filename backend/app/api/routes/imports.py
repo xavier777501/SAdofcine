@@ -3,7 +3,8 @@ import tempfile
 import os
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_officine
@@ -27,6 +28,46 @@ from app.services.file_parser import (
 router = APIRouter(prefix="/imports", tags=["Import de données"])
 
 MAX_BYTES = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+
+# ─── État de l'historique (pour proposer automatiquement le bon type d'import) ─
+
+@router.get("/etat")
+def get_etat_import(
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Indique si l'historique (Type 1) a déjà été initialisé pour cette officine,
+    et combien de mois glissants sont déjà remplis (0 à 12). Sert à proposer
+    automatiquement le bon type d'import (section 4bis : "il ne doit jamais
+    avoir à choisir manuellement"), et à ce que l'écran d'import mensuel se
+    souvienne où le pharmacien en est réellement, plutôt que de repartir de
+    zéro à chaque fois qu'il rouvre la page.
+    """
+    historique_initialise = (
+        db.query(Reference)
+        .filter(Reference.officine_id == officine.id, Reference.cmm.isnot(None))
+        .first()
+        is not None
+    )
+
+    # Nombre de mois déjà remplis = le plus grand nombre de lignes de ventes
+    # mensuelles trouvé pour une référence de cette officine (0 à 12).
+    ligne_max = (
+        db.query(func.count(VenteMensuelle.id))
+        .join(Reference, VenteMensuelle.reference_id == Reference.id)
+        .filter(Reference.officine_id == officine.id)
+        .group_by(VenteMensuelle.reference_id)
+        .order_by(func.count(VenteMensuelle.id).desc())
+        .first()
+    )
+    nb_mois_historique = ligne_max[0] if ligne_max else 0
+
+    return {
+        "historique_initialise": historique_initialise,
+        "nb_mois_historique": nb_mois_historique,
+    }
 
 
 # ─── Mapping de colonnes ─────────────────────────────────────────────────────
@@ -205,6 +246,205 @@ async def import_commande_logpharma(
     Ne touche jamais CMM/sigma/classe ABC/FSN/prix : le cahier des charges est
     explicite (section 4bis) — "il ne met à jour que le stock actuel". Ces
     données de fond du moteur ne viennent que de l'import historique.
+
+    Les sorties de la période sont aussi lues et conservées par référence
+    (affichées au pharmacien sur la liste d'action) et sommées pour ce rapport
+    d'import, afin de détailler ce qui s'est vendu depuis la dernière commande.
+    """
+    content = await file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Fichier trop volumineux (max {settings.MAX_UPLOAD_SIZE_MB} Mo).",
+        )
+
+    try:
+        lignes = parse_commande_logpharma(content)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    nb_ok = 0
+    nb_err = 0
+    erreurs: list[dict] = []
+    sorties_totales = 0.0
+
+    for ligne in lignes:
+        ref = db.query(Reference).filter(
+            Reference.officine_id == officine.id,
+            Reference.code == ligne["code"],
+        ).first()
+
+        if ref is None:
+            nb_err += 1
+            erreurs.append({"ligne": ligne["code"], "raison": "Code introuvable dans votre base"})
+            continue
+
+        sorties = max(0.0, ligne.get("sorties_periode") or 0.0)
+        ref.stock_actuel = ligne["stock_actuel"]
+        ref.sorties_derniere_commande = sorties
+        sorties_totales += sorties
+        nb_ok += 1
+
+    recalculer_apres_commande(officine.id, db)
+
+    import_log = ImportLog(
+        officine_id=officine.id,
+        nom_fichier=file.filename or "inconnu",
+        statut="succes",
+        nb_lignes_total=len(lignes),
+        nb_lignes_ok=nb_ok,
+        nb_lignes_erreur=nb_err,
+        erreurs_detail=json.dumps(erreurs, ensure_ascii=False) if erreurs else None,
+        sorties_totales=round(sorties_totales, 0),
+    )
+    db.add(import_log)
+    db.commit()
+    db.refresh(import_log)
+
+    return import_log
+
+
+# ─── Import Type 1 : historique mensuel, un mois Logpharma à la fois ────────────
+
+@router.post("/historique-logpharma", response_model=ImportLogOut)
+async def import_historique_logpharma(
+    file: UploadFile = File(...),
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Import Type 1 (historique), mécanisme glissant conforme au cahier des
+    charges (section 4bis) : "à chaque import, le mois le plus ancien sort de
+    l'historique et le nouveau mois entre". Logpharma ne fournit pas de fichier
+    "12 mois glissants" tout prêt avec une colonne par mois — son export natif
+    ("Listing de Produit à Commander") ne donne qu'un total de sorties pour la
+    période demandée. On réutilise donc ce même format fixe, et chaque import
+    représente automatiquement le nouveau mois le plus récent (M-1) : tout
+    l'historique existant glisse d'un cran (M-1→M-2, ..., et M-12 sort
+    définitivement), sans que le pharmacien ait à préciser quel mois c'est.
+
+    Pour l'initialisation, répéter cet import jusqu'à 12 fois, du mois le plus
+    ancien au plus récent, pour reconstituer l'historique glissant complet.
+    Chaque import met aussi à jour le stock actuel, puisqu'il représente
+    toujours le mois le plus récent au moment où il est réalisé.
+    """
+    content = await file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Fichier trop volumineux (max {settings.MAX_UPLOAD_SIZE_MB} Mo).",
+        )
+
+    try:
+        lignes = parse_commande_logpharma(content)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    # Faire glisser l'historique d'un cran pour TOUTES les références déjà
+    # connues de l'officine, avant d'insérer le nouveau mois : le mois 12
+    # (le plus ancien) sort, chaque mois restant avance d'un rang.
+    ref_ids_existantes = [
+        r.id for r in db.query(Reference.id).filter(Reference.officine_id == officine.id).all()
+    ]
+    if ref_ids_existantes:
+        db.query(VenteMensuelle).filter(
+            VenteMensuelle.reference_id.in_(ref_ids_existantes),
+            VenteMensuelle.mois_index == 12,
+        ).delete(synchronize_session=False)
+        db.query(VenteMensuelle).filter(
+            VenteMensuelle.reference_id.in_(ref_ids_existantes),
+        ).update({VenteMensuelle.mois_index: VenteMensuelle.mois_index + 1}, synchronize_session=False)
+        db.flush()
+
+    nb_ok = 0
+    nb_err = 0
+    erreurs: list[dict] = []
+
+    for ligne in lignes:
+        code = ligne["code"]
+        ref = db.query(Reference).filter(
+            Reference.officine_id == officine.id,
+            Reference.code == code,
+        ).first()
+
+        if ref is None:
+            designation = ligne.get("designation")
+            if not designation:
+                nb_err += 1
+                erreurs.append({
+                    "ligne": code,
+                    "raison": "Référence inconnue et sans désignation — impossible de la créer.",
+                })
+                continue
+            ref = Reference(officine_id=officine.id, code=code, designation=designation, stock_actuel=0)
+            db.add(ref)
+        elif ligne.get("designation"):
+            ref.designation = ligne["designation"]
+
+        if ligne.get("prix_cession") is not None:
+            ref.prix_cession = ligne["prix_cession"]
+        if ligne.get("prix_public") is not None:
+            ref.prix_public = ligne["prix_public"]
+        if ligne.get("circuit"):
+            ref.circuit = ligne["circuit"]
+
+        # Cet import représente toujours le mois le plus récent : le stock
+        # actuel est mis à jour à chaque fois.
+        ref.stock_actuel = ligne["stock_actuel"]
+
+        db.flush()  # pour avoir ref.id
+
+        # Sorties négatives (corrections d'inventaire) exclues du calcul (section 6.1).
+        quantite = max(0.0, ligne.get("sorties_periode") or 0.0)
+        # Le décalage ci-dessus a déjà vidé le mois_index=1 pour cette
+        # référence (poussé vers 2) — jamais de doublon possible ici.
+        db.add(VenteMensuelle(reference_id=ref.id, mois_index=1, quantite=quantite))
+
+        nb_ok += 1
+
+    # Recalcul complet du moteur SAD (CMM/sigma/ABC/FSN/SS/PC dépendent des 12 mois)
+    calculer_toutes_references(officine.id, db)
+
+    import_log = ImportLog(
+        officine_id=officine.id,
+        nom_fichier=file.filename or "inconnu",
+        statut="succes",
+        nb_lignes_total=len(lignes),
+        nb_lignes_ok=nb_ok,
+        nb_lignes_erreur=nb_err,
+        erreurs_detail=json.dumps(erreurs, ensure_ascii=False) if erreurs else None,
+    )
+    db.add(import_log)
+    db.commit()
+    db.refresh(import_log)
+
+    return import_log
+
+
+# ─── Import Type 1 : fichier annuel combiné (initialisation rapide, dégradée) ──
+
+@router.post("/historique-logpharma-annuel", response_model=ImportLogOut)
+async def import_historique_logpharma_annuel(
+    file: UploadFile = File(...),
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Import Type 1 à partir d'un unique fichier Logpharma couvrant une longue
+    période (ex. l'année entière) en un seul total de sorties par référence —
+    même format fixe que les autres imports Logpharma.
+
+    Ne calcule QUE le CMM (= total ÷ 12), seule valeur que la formule du
+    cahier des charges (section 6.1, "somme des ventes des 12 derniers mois /
+    12") permet de dériver d'un total global. CMMax ("valeur la plus haute
+    observée sur les 12 derniers mois") et l'écart-type mensuel (sigma)
+    exigent explicitement un détail mois par mois qu'un total unique ne
+    contient pas — ils ne sont donc jamais dérivés ni approximés ici, pour ne
+    pas fausser le calcul. Sans sigma, le stock de sécurité (SS), le point de
+    commande (PC), le statut et la quantité à commander restent indisponibles
+    pour ces références tant qu'elles n'ont pas été complétées mois par mois
+    via /imports/historique-logpharma — elles n'apparaîtront donc dans aucune
+    liste d'action tant que ce n'est pas fait (comportement volontaire, pas un bug).
     """
     content = await file.read()
     if len(content) > MAX_BYTES:
@@ -223,20 +463,44 @@ async def import_commande_logpharma(
     erreurs: list[dict] = []
 
     for ligne in lignes:
+        code = ligne["code"]
         ref = db.query(Reference).filter(
             Reference.officine_id == officine.id,
-            Reference.code == ligne["code"],
+            Reference.code == code,
         ).first()
 
         if ref is None:
-            nb_err += 1
-            erreurs.append({"ligne": ligne["code"], "raison": "Code introuvable dans votre base"})
-            continue
+            designation = ligne.get("designation")
+            if not designation:
+                nb_err += 1
+                erreurs.append({
+                    "ligne": code,
+                    "raison": "Référence inconnue et sans désignation — impossible de la créer.",
+                })
+                continue
+            ref = Reference(officine_id=officine.id, code=code, designation=designation, stock_actuel=0)
+            db.add(ref)
+        elif ligne.get("designation"):
+            ref.designation = ligne["designation"]
+
+        if ligne.get("prix_cession") is not None:
+            ref.prix_cession = ligne["prix_cession"]
+        if ligne.get("prix_public") is not None:
+            ref.prix_public = ligne["prix_public"]
+        if ligne.get("circuit"):
+            ref.circuit = ligne["circuit"]
 
         ref.stock_actuel = ligne["stock_actuel"]
-        nb_ok += 1
 
-    recalculer_apres_commande(officine.id, db)
+        # Sorties négatives (corrections d'inventaire) exclues, section 6.1.
+        total_periode = max(0.0, ligne.get("sorties_periode") or 0.0)
+        ref.cmm = round(total_periode / 12.0, 1)
+        # CMMax, sigma, classe ABC, FSN, SS, PC, statut, qté : volontairement
+        # laissés tels quels (None pour une nouvelle référence) — nécessitent
+        # un détail mensuel réel, jamais inventés à partir d'un total unique.
+
+        db.flush()
+        nb_ok += 1
 
     import_log = ImportLog(
         officine_id=officine.id,

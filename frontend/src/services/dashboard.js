@@ -20,6 +20,11 @@ export async function getANePasCommander() {
   return data
 }
 
+export async function getCommandePlafonnee() {
+  const { data } = await api.get('/dashboard/commande-plafonnee')
+  return data
+}
+
 export async function exportListe(format) {
   const { data } = await api.get('/dashboard/export', {
     params: { format },

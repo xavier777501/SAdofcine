@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getListeAction, exportListe } from '../services/dashboard'
+import { getListeAction, exportListe, getCommandePlafonnee } from '../services/dashboard'
 import PageHeader from '../components/PageHeader'
 
 function formatFCFA(val) {
@@ -68,8 +68,13 @@ function LigneAction({ ligne, expanded, onToggle }) {
       </tr>
       {expanded && (
         <tr className={cfg.bg}>
-          <td colSpan={8} className="px-4 py-2.5">
+          <td colSpan={8} className="px-4 py-2.5 space-y-1">
             <p className={`text-sm font-medium italic ${cfg.text}`}>{ligne.texte_decision}</p>
+            {ligne.sorties_derniere_commande != null && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {formatNb(ligne.sorties_derniere_commande)} unité{ligne.sorties_derniere_commande > 1 ? 's' : ''} vendue{ligne.sorties_derniere_commande > 1 ? 's' : ''} depuis la dernière commande
+              </p>
+            )}
           </td>
         </tr>
       )}
@@ -77,8 +82,51 @@ function LigneAction({ ligne, expanded, onToggle }) {
   )
 }
 
+function LignePlafond({ ligne, reportee }) {
+  const cfg = STATUT_CFG[ligne.statut] || {}
+  const classeCfg = CLASSE_CFG[ligne.classe] || CLASSE_CFG.C
+
+  return (
+    <tr className={`border-b border-slate-100 dark:border-slate-700/50 ${reportee ? 'opacity-50' : ''}`}>
+      <td className="px-4 py-2.5">
+        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.badge}`}>
+          {cfg.label}
+        </span>
+        {ligne.hors_plafond && (
+          <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-danger text-white">
+            HORS PLAFOND
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        {ligne.code}
+      </td>
+      <td className="px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 max-w-xs">
+        <span className="line-clamp-1">{ligne.designation}</span>
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        {ligne.classe && (
+          <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${classeCfg}`}>
+            {ligne.classe}
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
+        {formatNb(ligne.stock_actuel)}
+      </td>
+      <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-200">
+        {formatNb(ligne.qte_a_commander)}
+      </td>
+      <td className="px-4 py-2.5 text-right tabular-nums text-sm text-slate-600 dark:text-slate-400">
+        {ligne.valeur_fcfa > 0 ? formatFCFA(ligne.valeur_fcfa) : '—'}
+      </td>
+    </tr>
+  )
+}
+
 export default function ListeAction() {
   const [liste, setListe] = useState([])
+  const [plafond, setPlafond] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [exportEnCours, setExportEnCours] = useState(null)
   const [ligneOuverte, setLigneOuverte] = useState(null)
@@ -87,7 +135,12 @@ export default function ListeAction() {
   const charger = useCallback(async () => {
     setChargement(true)
     try {
-      setListe(await getListeAction())
+      const [liste, plafond] = await Promise.all([
+        getListeAction(),
+        getCommandePlafonnee().catch(() => null),
+      ])
+      setListe(liste)
+      setPlafond(plafond)
     } catch {
       setListe([])
     } finally {
@@ -96,6 +149,8 @@ export default function ListeAction() {
   }, [])
 
   useEffect(() => { charger() }, [charger])
+
+  const plafondActif = plafond && !plafond.sans_restriction
 
   async function handleExport(format) {
     setExportEnCours(format)
@@ -111,6 +166,32 @@ export default function ListeAction() {
         title="Liste d'action"
         subtitle="Références à traiter, triées par urgence — cliquez sur une ligne pour voir le conseil"
       />
+
+      {!chargement && plafondActif && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 p-5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Budget utilisé : {formatFCFA(plafond.budget_utilise)} / {formatFCFA(plafond.plafond)}
+            </p>
+            {plafond.montant_reporte > 0 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {formatFCFA(plafond.montant_reporte)} reportés à la prochaine commande
+              </p>
+            )}
+          </div>
+          <div className="h-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand rounded-full transition-all"
+              style={{ width: `${Math.min(100, (plafond.budget_utilise / plafond.plafond) * 100)}%` }}
+            />
+          </div>
+          {plafond.rupture_non_vitale_reportee && (
+            <p className="text-xs font-medium text-danger">
+              Attention : des références en rupture sont reportées faute de budget — pensez à arbitrer manuellement.
+            </p>
+          )}
+        </div>
+      )}
 
       {chargement && (
         <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500 text-sm py-8">
@@ -128,7 +209,45 @@ export default function ListeAction() {
         </p>
       )}
 
-      {!chargement && liste.length > 0 && (
+      {!chargement && plafondActif && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700">
+                  <th className="px-4 py-2.5">Statut</th>
+                  <th className="px-4 py-2.5">Code</th>
+                  <th className="px-4 py-2.5">Désignation</th>
+                  <th className="px-4 py-2.5 text-center">Cl.</th>
+                  <th className="px-4 py-2.5 text-right">Stock</th>
+                  <th className="px-4 py-2.5 text-right">Qté à cmd.</th>
+                  <th className="px-4 py-2.5 text-right">Valeur</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plafond.hors_plafond.map((ligne) => (
+                  <LignePlafond key={ligne.id} ligne={ligne} />
+                ))}
+                {plafond.inclus.map((ligne) => (
+                  <LignePlafond key={ligne.id} ligne={ligne} />
+                ))}
+                {plafond.reporte.length > 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-2 bg-slate-50 dark:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center border-y border-slate-200 dark:border-slate-700">
+                      ↓ Reportées à la prochaine commande — plafond atteint ({formatFCFA(plafond.montant_reporte)}) ↓
+                    </td>
+                  </tr>
+                )}
+                {plafond.reporte.map((ligne) => (
+                  <LignePlafond key={ligne.id} ligne={ligne} reportee />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!chargement && !plafondActif && liste.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
 
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700">

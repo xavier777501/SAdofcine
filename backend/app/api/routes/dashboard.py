@@ -9,9 +9,17 @@ from app.core.database import get_db
 from app.models.officine import Officine
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
-from app.schemas.dashboard import KpisOut, LigneActionOut, VenteM1Out, LigneNePasCommanderOut
+from app.schemas.dashboard import (
+    KpisOut,
+    LigneActionOut,
+    VenteM1Out,
+    LigneNePasCommanderOut,
+    CommandePlafonneeOut,
+)
 from app.services.texte_decision import generer_texte
 from app.services.export_dashboard import generer_xlsx, generer_pdf
+from app.services.plafond_commande import prioriser_et_plafonner
+from app.services.calcul_officine import get_or_create_parametres
 
 router = APIRouter(prefix="/dashboard", tags=["Tableau de pilotage"])
 
@@ -55,6 +63,7 @@ def _lignes_action(officine_id, db: Session) -> list[dict]:
             "stock_actuel":  r.stock_actuel or 0.0,
             "cmm":           r.cmm or 0.0,
             "vente_m1":      ventes_m1.get(str(r.id), 0.0),
+            "sorties_derniere_commande": r.sorties_derniere_commande,
             "statut":        r.statut,
             "qte_a_commander": qte,
             "valeur_fcfa":   valeur,
@@ -193,12 +202,36 @@ def get_a_ne_pas_commander(
             "code": r.code,
             "designation": r.designation,
             "stock_actuel": r.stock_actuel or 0.0,
-            "tresorerie_immobilisee": round(tresorerie, 0),
+            # Valeur exacte, non arrondie ici : arrondir ligne par ligne puis
+            # additionner décale le total affiché par rapport à celui du
+            # Tableau de bord (qui arrondit une seule fois, sur la somme).
+            # L'arrondi à l'affichage (formatFCFA) suffit pour la lisibilité.
+            "tresorerie_immobilisee": tresorerie,
             "motif": motif,
         })
 
     lignes.sort(key=lambda l: l["tresorerie_immobilisee"], reverse=True)
     return lignes
+
+
+# ── Plafond budgétaire de commande (section 6.7) ─────────────────────────────
+
+@router.get("/commande-plafonnee", response_model=CommandePlafonneeOut)
+def get_commande_plafonnee(
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Applique le plafond budgétaire de commande (réglages) aux références
+    actionnables : les ruptures sur produits Vitaux sont toujours incluses
+    hors plafond, les autres sont sélectionnées par ordre de priorité jusqu'à
+    atteindre le plafond, le reste est reporté à la prochaine commande.
+    """
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+
+    refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
+    return prioriser_et_plafonner(refs, params.plafond_commande_fcfa)
 
 
 # ── US-E4 : Export PDF / XLSX ─────────────────────────────────────────────────

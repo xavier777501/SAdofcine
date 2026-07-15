@@ -19,6 +19,7 @@ class Reference(BaseModel):
     prix_public  = Column(Float, nullable=True)   # FCFA
     stock_actuel = Column(Float, nullable=False, default=0)
     circuit      = Column(String, nullable=True)  # local / France / Chine-Inde...
+    sorties_derniere_commande = Column(Float, nullable=True)  # ventes sur la période du dernier import de commande (Type 2)
 
     # --- Saisie manuelle par le pharmacien ---
     ved              = Column(String, nullable=True)   # Vital / Essentiel / Désirable / None

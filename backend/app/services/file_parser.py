@@ -3,6 +3,7 @@ Parsing des fichiers d'import CSV/Excel.
 Retourne un DataFrame brut + la liste des colonnes disponibles.
 """
 import io
+import re
 from typing import Optional
 import pandas as pd
 
@@ -111,6 +112,31 @@ def apply_mapping(df: pd.DataFrame, mapping: dict[str, str]) -> tuple[list[dict]
     return lignes_ok, lignes_err
 
 
+def _normaliser_entete(valeur) -> str:
+    """
+    Normalise un en-tête de colonne pour la comparaison : les en-têtes réels
+    de Logpharma contiennent des retours à la ligne et des espaces irréguliers
+    au milieu des mots (ex: "Prix \nPublic", "FOUR-\nNISEUR") selon la largeur
+    de colonne au moment de l'export. On ignore espaces/retours à la
+    ligne/tirets et on met en majuscules pour comparer de façon fiable.
+    """
+    return re.sub(r"[\s\-]+", "", str(valeur)).upper()
+
+
+# Noms de colonnes normalisés tels qu'observés dans le vrai fichier
+# LOGPHARMA_EXPORT_TEST_FICTIF.xlsx (voir _normaliser_entete ci-dessus pour
+# la raison des variantes avec espaces/tirets/retours à la ligne).
+_COLONNES_LOGPHARMA = {
+    "code":            "CODEPROD",
+    "designation":     "DÉSIGNATION",
+    "stock_actuel":    "QTÉSAL.",
+    "sorties_periode": "SORTIES",
+    "prix_cession":    "PRIXCES.",
+    "prix_public":     "PRIXPUBLIC",
+    "circuit":         "FOURNISEUR",  # orthographe réelle de Logpharma (une seule S)
+}
+
+
 def parse_commande_logpharma(content: bytes) -> list[dict]:
     """
     Parse un export Logpharma "Listing de Produit à Commander".
@@ -129,18 +155,17 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
     # Supprimer les 3 dernières lignes (totaux)
     df = df.iloc[:-3]
 
-    COL_CODE     = "Code Prod"
-    COL_DESIG    = "Désignation"
-    COL_STOCK    = "Qté Sal."
-    COL_SORTIES  = "Sorties"
-    COL_PX_CES   = "Prix Ces."
-    COL_PX_PUB   = "Prix Public"
-    COL_CIRCUIT  = "FOURNISSEUR"
+    # Colonne réelle du fichier ↔ champ cible, via en-têtes normalisés
+    colonnes_par_entete_normalise = {_normaliser_entete(col): col for col in df.columns}
+    colonne_reelle = {
+        champ: colonnes_par_entete_normalise.get(entete_attendu)
+        for champ, entete_attendu in _COLONNES_LOGPHARMA.items()
+    }
 
-    for col in [COL_CODE, COL_DESIG, COL_STOCK]:
-        if col not in df.columns:
+    for champ in ("code", "designation", "stock_actuel"):
+        if colonne_reelle.get(champ) is None:
             raise ValueError(
-                f"Colonne '{col}' introuvable dans le fichier. "
+                f"Colonne '{_COLONNES_LOGPHARMA[champ]}' introuvable dans le fichier. "
                 "Vérifiez que c'est bien un export Logpharma 'Listing de Produit à Commander'."
             )
 
@@ -155,24 +180,35 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
         except ValueError:
             return None
 
+    def _valeur(row, champ):
+        col = colonne_reelle.get(champ)
+        if not col:
+            return None
+        val = row.get(col)
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return None
+        if isinstance(val, str) and val.strip().lower() in ("nan", ""):
+            return None
+        return val
+
     lignes: list[dict] = []
     for _, row in df.iterrows():
-        code = str(row.get(COL_CODE) or "").strip()
+        code = str(_valeur(row, "code") or "").strip()
         if not code or code.lower() == "nan":
             continue
 
-        stock = _to_float(row.get(COL_STOCK))
+        stock = _to_float(_valeur(row, "stock_actuel"))
         if stock is None or stock < 0:
             stock = 0.0
 
         lignes.append({
             "code": code,
-            "designation": str(row.get(COL_DESIG) or "").strip() or None,
+            "designation": str(_valeur(row, "designation") or "").strip() or None,
             "stock_actuel": stock,
-            "sorties_periode": _to_float(row.get(COL_SORTIES)) or 0.0,
-            "prix_cession": _to_float(row.get(COL_PX_CES)),
-            "prix_public":  _to_float(row.get(COL_PX_PUB)),
-            "circuit":      str(row.get(COL_CIRCUIT) or "").strip() or None,
+            "sorties_periode": _to_float(_valeur(row, "sorties_periode")) or 0.0,
+            "prix_cession": _to_float(_valeur(row, "prix_cession")),
+            "prix_public":  _to_float(_valeur(row, "prix_public")),
+            "circuit":      str(_valeur(row, "circuit") or "").strip() or None,
         })
 
     if not lignes:

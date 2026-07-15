@@ -12,6 +12,7 @@ class ParametreOfficineOut(BaseModel):
     niveau_service_essentiel: float
     niveau_service_desirable: float
     niveau_service_non_renseigne: float
+    plafond_commande_fcfa: Optional[float]
 
     model_config = {"from_attributes": True}
 
@@ -26,3 +27,6 @@ class ParametreOfficineUpdate(BaseModel):
     niveau_service_essentiel: Optional[float] = Field(default=None, gt=0, lt=1)
     niveau_service_desirable: Optional[float] = Field(default=None, gt=0, lt=1)
     niveau_service_non_renseigne: Optional[float] = Field(default=None, gt=0, lt=1)
+    # Optionnel : vide/absent = pas de plafond (section 6.7). Peut être remis à
+    # None explicitement pour désactiver le plafond une fois configuré.
+    plafond_commande_fcfa: Optional[float] = Field(default=None, ge=0)

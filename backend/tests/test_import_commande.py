@@ -173,6 +173,33 @@ class TestImportCommandeLogpharma:
         assert len(ventes) == 1
         assert ventes[0].quantite == 100
 
+    def test_sorties_detaillees_par_reference_et_totalisees(self, client, token, db_session, reference_deja_calculee):
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.post(
+            "/api/v1/imports/commande",
+            files={"file": ("logpharma.xlsx", _fichier_logpharma(sorties=90), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["sorties_totales"] == 90.0
+
+        db_session.refresh(reference_deja_calculee)
+        assert reference_deja_calculee.sorties_derniere_commande == 90.0
+
+        liste = client.get("/api/v1/dashboard/liste-action", headers=headers).json()
+        # La référence est OK après cet import (stock > PC) donc absente de la
+        # liste d'action — on vérifie juste que le champ existe et se lit bien
+        # via un import qui la laisse actionnable (stock plus bas).
+        response2 = client.post(
+            "/api/v1/imports/commande",
+            files={"file": ("logpharma.xlsx", _fichier_logpharma(stock=0, sorties=42), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            headers=headers,
+        )
+        assert response2.status_code == 200
+        liste = client.get("/api/v1/dashboard/liste-action", headers=headers).json()
+        ligne = next(l for l in liste if l["code"] == "A001")
+        assert ligne["sorties_derniere_commande"] == 42.0
+
     def test_code_inconnu_signale_en_erreur_sans_planter(self, client, token, reference_deja_calculee):
         headers = {"Authorization": f"Bearer {token}"}
         response = client.post(

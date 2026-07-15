@@ -17,6 +17,7 @@ function versFormulaire(params) {
     niveau_service_essentiel_pct: String(Math.round(params.niveau_service_essentiel * 100)),
     niveau_service_desirable_pct: String(Math.round(params.niveau_service_desirable * 100)),
     niveau_service_non_renseigne_pct: String(Math.round(params.niveau_service_non_renseigne * 100)),
+    plafond_commande_fcfa: params.plafond_commande_fcfa != null ? String(params.plafond_commande_fcfa) : '',
   }
 }
 
@@ -134,6 +135,9 @@ export default function Reglages() {
       const v = Number(form[champ])
       if (!v || v <= 0 || v >= 100) errors[champ] = 'Indiquez un pourcentage entre 0 et 100.'
     }
+    if (form.plafond_commande_fcfa.trim() !== '' && Number(form.plafond_commande_fcfa) < 0) {
+      errors.plafond_commande_fcfa = 'Indiquez un montant positif, ou laissez vide pour ne pas limiter.'
+    }
     return errors
   }
 
@@ -157,6 +161,7 @@ export default function Reglages() {
         niveau_service_essentiel: Number(form.niveau_service_essentiel_pct) / 100,
         niveau_service_desirable: Number(form.niveau_service_desirable_pct) / 100,
         niveau_service_non_renseigne: Number(form.niveau_service_non_renseigne_pct) / 100,
+        plafond_commande_fcfa: form.plafond_commande_fcfa.trim() === '' ? null : Number(form.plafond_commande_fcfa),
       })
       setForm(versFormulaire(params))
       setSuccess(true)
@@ -317,6 +322,27 @@ export default function Reglages() {
                 error={fieldErrors.niveau_service_non_renseigne_pct}
               />
             </div>
+
+            <hr className="border-slate-200 dark:border-slate-700" />
+
+            <div>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Plafond budgétaire de commande</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Montant maximum pour une session de commande. Les produits vitaux en rupture sont toujours inclus,
+                même au-delà de ce montant. Laissez vide pour ne fixer aucune limite.
+              </p>
+            </div>
+
+            <FormField
+              label="Plafond (FCFA)"
+              id="plafond_commande_fcfa"
+              type="number"
+              min="0"
+              hint="Optionnel — vide ou 0 = pas de limite"
+              value={form.plafond_commande_fcfa}
+              onChange={update('plafond_commande_fcfa')}
+              error={fieldErrors.plafond_commande_fcfa}
+            />
 
             <SubmitButton loading={saving} loadingLabel="Recalcul en cours… (peut prendre 20 s)">
               Enregistrer les réglages

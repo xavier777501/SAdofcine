@@ -2,6 +2,15 @@ import api from './api'
 
 const UPLOAD_TIMEOUT_MS = 300000 // 5 min — un import de ~5000 lignes peut prendre 2-3 min
 
+/**
+ * Indique si l'historique (Type 1) a déjà été initialisé, pour proposer
+ * automatiquement le bon type d'import au pharmacien sans lui demander de choisir.
+ */
+export async function getEtatImport() {
+  const { data } = await api.get('/imports/etat')
+  return data
+}
+
 export async function previewImport(file) {
   const formData = new FormData()
   formData.append('file', file)
@@ -44,6 +53,40 @@ export async function runImportCommande(file) {
   const formData = new FormData()
   formData.append('file', file)
   const { data } = await api.post('/imports/commande', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT_MS,
+  })
+  return data
+}
+
+/**
+ * Import Type 1, mécanisme glissant : Logpharma ne fournit qu'un export
+ * "Listing de Produit à Commander" (même format que le Type 2), pas un
+ * fichier "12 mois" tout prêt. Chaque import représente automatiquement le
+ * nouveau mois le plus récent — le mois le plus ancien sort de l'historique.
+ * Pour l'initialisation, répéter cet import jusqu'à 12 fois, du mois le plus
+ * ancien au plus récent.
+ */
+export async function runImportHistoriqueLogpharma(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/imports/historique-logpharma', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT_MS,
+  })
+  return data
+}
+
+/**
+ * Import Type 1 "rapide" à partir d'un seul fichier Logpharma couvrant une
+ * longue période (ex. l'année entière) en un seul total de sorties. Ne donne
+ * qu'un CMM initial — le stock de sécurité et les quantités à commander
+ * restent indisponibles tant que les mois ne sont pas complétés un par un.
+ */
+export async function runImportHistoriqueAnnuel(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/imports/historique-logpharma-annuel', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: UPLOAD_TIMEOUT_MS,
   })

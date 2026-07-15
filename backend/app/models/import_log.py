@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Text, ForeignKey, Uuid
+from sqlalchemy import Column, String, Integer, Float, Text, ForeignKey, Uuid
 from app.models.base import BaseModel
 
 
@@ -15,3 +15,4 @@ class ImportLog(BaseModel):
     nb_lignes_ok     = Column(Integer, nullable=True)
     nb_lignes_erreur = Column(Integer, nullable=True)
     erreurs_detail   = Column(Text, nullable=True)   # JSON des erreurs par ligne
+    sorties_totales  = Column(Float, nullable=True)  # import de commande (Type 2) uniquement : somme des sorties de la période

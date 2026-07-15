@@ -22,6 +22,7 @@ class LigneActionOut(BaseModel):
     stock_actuel: float
     cmm: float                    # consommation mensuelle moyenne (ventes/mois)
     vente_m1: float                # ventes réelles du mois le plus récent (M-1)
+    sorties_derniere_commande: Optional[float]  # vendu depuis le dernier import de commande (Type 2)
     statut: str
     qte_a_commander: float
     valeur_fcfa: float            # qte_a_commander × prix_cession
@@ -47,5 +48,33 @@ class LigneNePasCommanderOut(BaseModel):
     stock_actuel: float
     tresorerie_immobilisee: float   # FCFA dormant sur cette référence
     motif: str                      # texte clair, sans jargon
+
+    model_config = {"from_attributes": False}
+
+
+class LignePlafondOut(BaseModel):
+    id: str
+    code: str
+    designation: str
+    classe: Optional[str]
+    statut: str
+    ved: Optional[str]
+    stock_actuel: float
+    qte_a_commander: float
+    valeur_fcfa: float
+    hors_plafond: bool
+
+    model_config = {"from_attributes": False}
+
+
+class CommandePlafonneeOut(BaseModel):
+    plafond: Optional[float]
+    sans_restriction: bool
+    budget_utilise: float
+    hors_plafond: list[LignePlafondOut]
+    inclus: list[LignePlafondOut]
+    reporte: list[LignePlafondOut]
+    montant_reporte: float
+    rupture_non_vitale_reportee: bool
 
     model_config = {"from_attributes": False}
