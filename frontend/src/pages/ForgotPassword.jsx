@@ -163,7 +163,7 @@ export default function ForgotPassword() {
           <button
             type="button"
             onClick={handleRenvoyer}
-            className="tg-tap block w-full text-center text-sm font-medium text-info hover:underline"
+            className="tg-tap block w-full rounded-lg border border-info/40 px-4 py-2.5 text-center text-sm font-semibold text-info transition-colors hover:bg-info-light dark:hover:bg-info/10"
           >
             Renvoyer le code
           </button>
@@ -173,7 +173,7 @@ export default function ForgotPassword() {
         to="/login"
         viewTransition
         onClick={() => marquerDirection('/mot-de-passe-oublie', '/login')}
-        className="tg-tap mt-6 block w-full text-center text-sm font-medium text-slate-500 dark:text-slate-400 hover:underline"
+        className="tg-tap mt-6 block w-full rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-center text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
       >
         Retour à la connexion
       </Link>

@@ -5,7 +5,11 @@ export default function NotFound() {
     <div className="min-h-screen bg-surface dark:bg-slate-900 flex flex-col items-center justify-center text-center px-4">
       <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">404</h1>
       <p className="mt-2 text-slate-500 dark:text-slate-400">Cette page n'existe pas.</p>
-      <Link to="/" viewTransition className="tg-tap mt-6 text-brand font-medium hover:underline">
+      <Link
+        to="/"
+        viewTransition
+        className="tg-tap mt-6 inline-block rounded-lg border border-brand px-4 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-light dark:hover:bg-brand/10"
+      >
         Retour à l'accueil
       </Link>
     </div>

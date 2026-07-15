@@ -46,8 +46,8 @@ const SECTIONS = [
     titre: 'Importer',
     resume: "Où vous déposez vos fichiers pour que l'application reste à jour.",
     texte: [
-      "Deux boutons, pour deux usages différents :",
-      "« Mettre à jour l'historique mensuel » — une fois par mois, avec le fichier des ventes des 12 derniers mois. C'est ce qui permet à l'application d'apprendre les habitudes de vente de chaque produit.",
+      "Deux options, pour deux usages différents — vous choisissez laquelle à chaque fois :",
+      "« Mettre à jour l'historique mensuel » — sert uniquement à calibrer la précision du moteur de calcul (ventes moyennes, seuils, priorités), jamais à passer une commande. Au départ, il faut importer vos 12 derniers mois un par un (un fichier par mois). Ensuite, un seul fichier par mois suffit : le mois le plus ancien sort automatiquement et le nouveau entre.",
       "« Préparer ma commande » — à chaque fois que vous voulez passer une commande, avec l'export Logpharma du moment. Ça met à jour votre stock actuel et recalcule instantanément ce qu'il faut commander.",
     ],
   },

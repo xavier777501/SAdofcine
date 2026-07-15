@@ -137,7 +137,7 @@ export default function Login() {
         to="/mot-de-passe-oublie"
         viewTransition
         onClick={() => marquerDirection('/login', '/mot-de-passe-oublie')}
-        className="tg-tap mt-4 block w-full text-center text-sm font-medium text-info hover:underline"
+        className="tg-tap mt-4 block w-full rounded-lg border border-info/40 px-4 py-2.5 text-center text-sm font-semibold text-info transition-colors hover:bg-info-light dark:hover:bg-info/10"
       >
         Mot de passe oublié ?
       </Link>

@@ -56,9 +56,12 @@ export default function DecisionsCommande() {
                 to="/liste-action"
                 viewTransition
                 onClick={() => marquerDirection('/quoi-commander', '/liste-action')}
-                className="tg-tap text-sm font-medium text-brand hover:underline"
+                className="tg-tap inline-flex items-center gap-1.5 rounded-lg border border-brand px-3 py-1.5 text-xs font-semibold text-brand transition-colors hover:bg-brand-light dark:hover:bg-brand/10"
               >
-                Voir la liste complète →
+                Voir la liste complète
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden="true">
+                  <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </Link>
             </div>
 
