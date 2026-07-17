@@ -33,7 +33,7 @@ export function clearSession() {
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
-  timeout: 10000,
+  timeout: 30000,
 })
 
 api.interceptors.request.use((config) => {

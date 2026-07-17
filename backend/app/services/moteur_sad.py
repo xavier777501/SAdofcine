@@ -129,7 +129,7 @@ def calc_pc(cmm: float, dl_moy_jours: int, ss: float) -> float:
 
 def calc_statut(stock: float, ss: float, pc: float) -> str:
     """
-    Statut d'approvisionnement :
+    Statut d'approvisionnement (table 9 du cahier des charges V4) :
       RUPTURE  : stock <= 0
       CRITIQUE : stock <= SS
       COMMANDER: stock <= PC
@@ -249,7 +249,7 @@ def calc_classes_abc(
     Sortie  : dict {id → "A" | "B" | "C"}
 
     - Tri décroissant par CA annuel (CMM × 12 × Prix public, section 6.2)
-    - A : jusqu'à 80 % du CA cumulé
+    - A : jusqu'à 80 % du CA cumulé  (section 6.2 du cahier des charges V4)
     - B : de 80 % à 95 %
     - C : au-delà
     """
