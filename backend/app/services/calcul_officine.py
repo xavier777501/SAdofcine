@@ -22,7 +22,6 @@ from app.services.moteur_sad import (
     calc_niveau_recompletement,
     calc_pc,
     calc_qte_commander,
-    calc_qte_commander_continu,
     calc_sigma,
     calc_ss,
     calc_ss_periodique,
@@ -30,16 +29,6 @@ from app.services.moteur_sad import (
     calc_tresorerie_liberee,
     get_z,
 )
-
-
-def _qte_effective(cycle_commande_jours: int, qte_cycle: float, qte_continu: float) -> float:
-    """
-    Section 6.3 vs 6.5 du cahier des charges : ce sont deux modes de réappro
-    mutuellement exclusifs, pas deux quantités à afficher en parallèle. En
-    mode continu (cycle_commande_jours = 0), la quantité à commander est
-    celle du point de commande (PC + CMM), pas celle du cycle périodique S.
-    """
-    return qte_continu if cycle_commande_jours == 0 else qte_cycle
 
 
 def _reset_ajustement_si_resolu(ref: Reference) -> None:
@@ -138,12 +127,8 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
         T     = params.cycle_commande_jours
         ss_p  = calc_ss_periodique(z, sigma, dl_max_jours, T, Y)
         S     = calc_niveau_recompletement(cmm, dl_moy_jours, T, Y, ss_p)
-        qte_cycle   = calc_qte_commander(S, ref.stock_actuel or 0.0)
-        qte_continu = calc_qte_commander_continu(pc, ref.stock_actuel or 0.0, cmm)
-
-        qte_cycle, qte_continu = appliquer_neutralisation_fsn(
-            fsn, ref.ved, qte_cycle, qte_continu
-        )
+        qte_cycle = calc_qte_commander(S, ref.stock_actuel or 0.0)
+        qte_cycle = appliquer_neutralisation_fsn(fsn, ref.ved, qte_cycle)
 
         couverture = calc_couverture_jours(ref.stock_actuel or 0.0, cmm)
         tresorerie = calc_tresorerie_liberee(ref.stock_actuel or 0.0, S, ref.prix_cession)
@@ -160,8 +145,7 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
         ref.eoq    = eoq
         ref.ss_periodique          = ss_p
         ref.niveau_recompletement  = S
-        ref.qte_a_commander        = _qte_effective(T, qte_cycle, qte_continu)
-        ref.qte_commander_continu  = qte_continu
+        ref.qte_a_commander        = qte_cycle
         ref.couverture_jours       = couverture
         ref.tresorerie_liberee     = tresorerie
         _reset_ajustement_si_resolu(ref)
@@ -217,13 +201,9 @@ def recalculer_apres_commande(officine_id, db: Session) -> dict:
 
         ref.statut = calc_statut(stock, ref.ss or 0.0, ref.pc or 0.0)
 
-        qte_cycle   = calc_qte_commander(ref.niveau_recompletement or 0.0, stock)
-        qte_continu = calc_qte_commander_continu(ref.pc or 0.0, stock, ref.cmm or 0.0)
-        qte_cycle, qte_continu = appliquer_neutralisation_fsn(
-            ref.fsn, ref.ved, qte_cycle, qte_continu
-        )
-        ref.qte_a_commander       = _qte_effective(params.cycle_commande_jours, qte_cycle, qte_continu)
-        ref.qte_commander_continu = qte_continu
+        qte_cycle = calc_qte_commander(ref.niveau_recompletement or 0.0, stock)
+        qte_cycle = appliquer_neutralisation_fsn(ref.fsn, ref.ved, qte_cycle)
+        ref.qte_a_commander = qte_cycle
 
         ref.couverture_jours   = calc_couverture_jours(stock, ref.cmm or 0.0)
         ref.tresorerie_liberee = calc_tresorerie_liberee(

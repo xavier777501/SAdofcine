@@ -37,8 +37,7 @@ class Reference(BaseModel):
     eoq        = Column(Float, nullable=True)     # quantité économique (indicatif)
     ss_periodique     = Column(Float, nullable=True)
     niveau_recompletement = Column(Float, nullable=True)  # S
-    qte_a_commander  = Column(Float, nullable=True)       # quantité finale (cycle)
-    qte_commander_continu = Column(Float, nullable=True)  # quantité finale (continu)
+    qte_a_commander  = Column(Float, nullable=True)       # quantité finale (cycle périodique)
     statut     = Column(String, nullable=True)    # RUPTURE / CRITIQUE / COMMANDER / OK
     couverture_jours = Column(Float, nullable=True)
     tresorerie_liberee = Column(Float, nullable=True)

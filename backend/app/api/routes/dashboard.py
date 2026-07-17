@@ -97,6 +97,13 @@ def get_kpis(
     db: Session = Depends(get_db),
 ):
     """Retourne les 5 indicateurs clés recalculés à chaque appel."""
+    # params/commit AVANT le chargement des références : db.commit() expire
+    # tous les objets déjà chargés dans la session, ce qui forcerait sinon un
+    # SELECT individuel par référence (N+1) dès leur premier accès juste après
+    # (mesuré : ~8s sur 7900 références, contre <1s en chargeant après coup).
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+
     refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
 
     # US-D8 : les Non-moving non Vitales sont neutralisées, donc exclues des
@@ -112,8 +119,6 @@ def get_kpis(
     # manuels) que la Liste d'action et "Quoi commander" — sinon le Tableau
     # de bord annonce un montant que le plafond empêchera de commander
     # (section 6.7 : les deux écrans doivent raconter la même histoire).
-    params = get_or_create_parametres(officine.id, db)
-    db.commit()
     plafonnee = prioriser_et_plafonner(actionnables, params.plafond_commande_fcfa)
     valeur = plafonnee["budget_utilise"] + sum(l["valeur_fcfa"] for l in plafonnee["hors_plafond"])
 

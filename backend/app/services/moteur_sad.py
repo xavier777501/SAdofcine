@@ -217,16 +217,6 @@ def calc_qte_commander(S: float, stock: float) -> float:
     return float(math.floor(diff + 0.5))
 
 
-def calc_qte_commander_continu(pc: float, stock: float, cmm: float) -> float:
-    """
-    Quantité à commander (mode continu) :
-    Commande la différence jusqu'au niveau de recomplètement simplifié = PC + CMM.
-    """
-    if stock >= pc:
-        return 0.0
-    return max(0.0, round(pc + cmm - stock, 0))
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # US-D8 : Neutralisation des Non-moving
 # ─────────────────────────────────────────────────────────────────────────────
@@ -234,19 +224,15 @@ def calc_qte_commander_continu(pc: float, stock: float, cmm: float) -> float:
 def appliquer_neutralisation_fsn(
     fsn: str,
     ved: Optional[str],
-    qte_periodique: float,
-    qte_continu: float,
-) -> tuple[float, float]:
+    qte: float,
+) -> float:
     """
     Si Non-moving :
       - qté = 0, sauf si VED = Vital → qté = 1
-    Retourne (qte_periodique, qte_continu) après neutralisation.
     """
     if fsn != "Non-moving":
-        return qte_periodique, qte_continu
-    if ved == "Vital":
-        return 1.0, 1.0
-    return 0.0, 0.0
+        return qte
+    return 1.0 if ved == "Vital" else 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

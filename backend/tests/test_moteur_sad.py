@@ -352,24 +352,16 @@ class TestCyclePeriodique:
 
 class TestNeutralisationFSN:
     def test_non_moving_standard_neutralise(self):
-        q_p, q_c = appliquer_neutralisation_fsn("Non-moving", None, 5.0, 3.0)
-        assert q_p == 0.0
-        assert q_c == 0.0
+        assert appliquer_neutralisation_fsn("Non-moving", None, 5.0) == 0.0
 
     def test_non_moving_vital_donne_un(self):
-        q_p, q_c = appliquer_neutralisation_fsn("Non-moving", "Vital", 5.0, 3.0)
-        assert q_p == 1.0
-        assert q_c == 1.0
+        assert appliquer_neutralisation_fsn("Non-moving", "Vital", 5.0) == 1.0
 
     def test_fast_non_neutralise(self):
-        q_p, q_c = appliquer_neutralisation_fsn("Fast", None, 5.0, 3.0)
-        assert q_p == 5.0
-        assert q_c == 3.0
+        assert appliquer_neutralisation_fsn("Fast", None, 5.0) == 5.0
 
     def test_slow_non_neutralise(self):
-        q_p, q_c = appliquer_neutralisation_fsn("Slow", "Essentiel", 4.0, 2.0)
-        assert q_p == 4.0
-        assert q_c == 2.0
+        assert appliquer_neutralisation_fsn("Slow", "Essentiel", 4.0) == 4.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

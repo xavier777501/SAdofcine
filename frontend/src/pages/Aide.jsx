@@ -56,7 +56,7 @@ const SECTIONS = [
     resume: "Ce qu'on configure une fois, et qu'on ne retouche presque jamais.",
     texte: [
       "Les délais de livraison de vos fournisseurs, selon le circuit (local, import...).",
-      "Le rythme auquel vous préférez passer vos commandes (en continu, tous les 10 jours, ou une fois par mois).",
+      "Le rythme auquel vous préférez passer vos commandes (tous les 10 jours, ou une fois par mois).",
       "Le niveau de service que vous souhaitez pour chaque catégorie de produit — plus il est élevé, moins vous risquez la rupture, mais plus vous immobilisez de stock.",
     ],
   },

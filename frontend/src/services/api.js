@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 const TOKEN_KEY = 'stockaid_token'
 const EMAIL_KEY = 'stockaid_email'
 const OFFICINE_NOM_KEY = 'stockaid_officine_nom'

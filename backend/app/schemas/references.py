@@ -21,7 +21,6 @@ class ReferenceOut(BaseModel):
     pc: Optional[float]
     statut: Optional[str]
     qte_a_commander: Optional[float]
-    qte_commander_continu: Optional[float]
     qte_a_commander_override: Optional[float]
     inclusion_manuelle: Optional[str]
     risque_fournisseur_jours: int
