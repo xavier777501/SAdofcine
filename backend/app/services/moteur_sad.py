@@ -127,19 +127,19 @@ def calc_pc(cmm: float, dl_moy_jours: int, ss: float) -> float:
     return (cmm / 30.0) * dl_moy_jours + ss
 
 
-def calc_statut(stock: float, ss: float, pc: float, s: float = 0.0) -> str:
+def calc_statut(stock: float, ss: float, pc: float) -> str:
     """
-    Statut d'approvisionnement (section 7 du cahier des charges) :
-      RUPTURE  : stock < SS  (seuil de sécurité franchi)  — ou stock ≤ 0 si SS=0
-      CRITIQUE : SS ≤ stock < PC
-      COMMANDER: PC ≤ stock < S  (niveau de recomplètement)
-      OK       : stock ≥ S
+    Statut d'approvisionnement (table 9 du cahier des charges V4) :
+      RUPTURE  : stock <= 0
+      CRITIQUE : stock <= SS
+      COMMANDER: stock <= PC
+      OK       : sinon
     """
-    if stock <= 0 or stock < ss:
+    if stock <= 0:
         return "RUPTURE"
-    if stock < pc:
+    if stock <= ss:
         return "CRITIQUE"
-    if stock < s:
+    if stock <= pc:
         return "COMMANDER"
     return "OK"
 
@@ -263,15 +263,15 @@ def calc_classes_abc(
     Sortie  : dict {id → "A" | "B" | "C"}
 
     - Tri décroissant par CA annuel (CMM × 12 × Prix public, section 6.2)
-    - A : jusqu'à 70 % du CA cumulé  (section 6.2 du cahier des charges)
-    - B : de 70 % à 90 %
+    - A : jusqu'à 80 % du CA cumulé  (section 6.2 du cahier des charges V4)
+    - B : de 80 % à 95 %
     - C : au-delà
     """
     # Calcul CA pour chaque référence
     avec_ca = []
     for ref in references:
         cmm = ref.get("cmm") or 0.0
-        prix = ref.get("prix_cession") or 0.0
+        prix = ref.get("prix_public") or 0.0
         ca = cmm * 12 * prix
         avec_ca.append({"id": ref["id"], "ca": ca, "cmm": cmm})
 
@@ -287,9 +287,9 @@ def calc_classes_abc(
         for item in avec_ca:
             ratio_avant = cumul / total_cmm
             cumul += item["cmm"]
-            if ratio_avant < 0.70:
+            if ratio_avant < 0.80:
                 classes[item["id"]] = "A"
-            elif ratio_avant < 0.90:
+            elif ratio_avant < 0.95:
                 classes[item["id"]] = "B"
             else:
                 classes[item["id"]] = "C"
@@ -303,9 +303,9 @@ def calc_classes_abc(
         # Classifier selon le cumul AVANT ajout de cet article
         ratio_avant = cumul / total_ca
         cumul += item["ca"]
-        if ratio_avant < 0.70:
+        if ratio_avant < 0.80:
             classes[item["id"]] = "A"
-        elif ratio_avant < 0.90:
+        elif ratio_avant < 0.95:
             classes[item["id"]] = "B"
         else:
             classes[item["id"]] = "C"

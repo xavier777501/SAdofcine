@@ -53,6 +53,12 @@ def modifier_ved(
     """
     ref = _get_reference_ou_404(reference_id, officine, db)
 
+    if ref.classe not in ("A", "B"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le statut VED ne peut être attribué qu'aux références de classe A ou B.",
+        )
+
     ref.ved = data.ved
     db.flush()
     calculer_toutes_references(officine.id, db)

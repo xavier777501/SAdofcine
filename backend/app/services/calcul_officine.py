@@ -130,7 +130,7 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
 
         ss    = calc_ss(z, sigma, dl_max_jours)
         pc    = calc_pc(cmm, dl_moy_jours, ss)
-        statut = calc_statut(ref.stock_actuel or 0.0, ss, pc, S)
+        statut = calc_statut(ref.stock_actuel or 0.0, ss, pc)
 
         eoq   = calc_eoq(cmm, params.cout_commande, params.taux_detention, ref.prix_cession)
 
@@ -170,7 +170,7 @@ def calculer_toutes_references(officine_id, db: Session) -> dict:
     # CA = ventes 12 mois × Prix public (section 6.2) ; repli sur prix de
     # cession si le prix public est absent de l'import.
     abc_input = [
-        {"id": str(r.id), "cmm": r.cmm, "prix_cession": r.prix_cession or r.prix_public}
+        {"id": str(r.id), "cmm": r.cmm, "prix_public": r.prix_public or r.prix_cession}
         for r in references
     ]
     classes = calc_classes_abc(abc_input)
@@ -215,7 +215,7 @@ def recalculer_apres_commande(officine_id, db: Session) -> dict:
     for ref in references:
         stock = ref.stock_actuel or 0.0
 
-        ref.statut = calc_statut(stock, ref.ss or 0.0, ref.pc or 0.0, ref.niveau_recompletement or 0.0)
+        ref.statut = calc_statut(stock, ref.ss or 0.0, ref.pc or 0.0)
 
         qte_cycle   = calc_qte_commander(ref.niveau_recompletement or 0.0, stock)
         qte_continu = calc_qte_commander_continu(ref.pc or 0.0, stock, ref.cmm or 0.0)
