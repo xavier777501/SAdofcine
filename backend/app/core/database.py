@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -12,6 +12,18 @@ engine = create_engine(
     connect_args=connect_args,
     echo=settings.DEBUG,
 )
+
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_connection, _):
+        # WAL : les lectures ne bloquent plus les écritures (et inversement),
+        # journal plus résistant qu'un rollback journal classique en cas de
+        # coupure. busy_timeout évite une erreur immédiate "database is
+        # locked" si deux requêtes se chevauchent brièvement.
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

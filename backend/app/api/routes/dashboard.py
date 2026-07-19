@@ -264,24 +264,31 @@ def get_commande_plafonnee(
 @router.get("/export")
 def export_liste_action(
     format: str = Query(..., pattern="^(pdf|xlsx)$"),
+    statut: str | None = Query(None, pattern="^(RUPTURE|CRITIQUE|COMMANDER)$"),
     officine: Officine = Depends(get_current_officine),
     db: Session = Depends(get_db),
 ):
     """
     Exporte la liste d'action en PDF ou XLSX.
     Usage : GET /dashboard/export?format=pdf  ou  ?format=xlsx
+    `statut` (optionnel) : n'exporte que les références de cet onglet
+    (Rupture/Critique/Commander) — doit refléter le filtre actif à l'écran,
+    sinon l'export ne correspond pas à ce que le pharmacien regarde.
     """
     lignes = _lignes_action(officine.id, db)
+    if statut:
+        lignes = [l for l in lignes if l["statut"] == statut]
     nom = officine.nom
+    suffixe = f"_{statut.lower()}" if statut else ""
 
     if format == "xlsx":
         contenu = generer_xlsx(lignes, nom)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        filename = f"sad_officine_liste_action_{nom}.xlsx"
+        filename = f"sad_officine_liste_action{suffixe}_{nom}.xlsx"
     else:
         contenu = generer_pdf(lignes, nom)
         media_type = "application/pdf"
-        filename = f"sad_officine_liste_action_{nom}.pdf"
+        filename = f"sad_officine_liste_action{suffixe}_{nom}.pdf"
 
     return StreamingResponse(
         io.BytesIO(contenu),

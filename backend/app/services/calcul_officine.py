@@ -5,6 +5,7 @@ et persiste les résultats sur chaque référence.
 """
 from __future__ import annotations
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.delai_circuit import DelaiCircuit
@@ -43,14 +44,30 @@ def _reset_ajustement_si_resolu(ref: Reference) -> None:
 
 
 def get_or_create_parametres(officine_id, db: Session) -> ParametreOfficine:
-    """Retourne les paramètres de l'officine, en les créant avec les défauts si absent."""
+    """
+    Retourne les paramètres de l'officine, en les créant avec les défauts si absent.
+
+    Le tableau de bord déclenche plusieurs appels API en parallèle au
+    chargement (kpis, commande-plafonnee...), qui peuvent chacun arriver ici
+    avant qu'aucun n'ait encore créé la ligne : sans le try/except, le second
+    flush() lève IntegrityError (officine_id est UNIQUE) au lieu de
+    simplement récupérer la ligne que l'autre requête vient de créer.
+    """
     params = db.query(ParametreOfficine).filter(
         ParametreOfficine.officine_id == officine_id
     ).first()
-    if params is None:
-        params = ParametreOfficine(officine_id=officine_id)
-        db.add(params)
+    if params is not None:
+        return params
+
+    params = ParametreOfficine(officine_id=officine_id)
+    db.add(params)
+    try:
         db.flush()
+    except IntegrityError:
+        db.rollback()
+        params = db.query(ParametreOfficine).filter(
+            ParametreOfficine.officine_id == officine_id
+        ).first()
     return params
 
 

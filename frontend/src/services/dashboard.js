@@ -25,15 +25,16 @@ export async function getCommandePlafonnee() {
   return data
 }
 
-export async function exportListe(format) {
+export async function exportListe(format, statut) {
   const { data } = await api.get('/dashboard/export', {
-    params: { format },
+    params: statut && statut !== 'TOUS' ? { format, statut } : { format },
     responseType: 'blob',
   })
+  const suffixe = statut && statut !== 'TOUS' ? `_${statut.toLowerCase()}` : ''
   const url = URL.createObjectURL(data)
   const a = document.createElement('a')
   a.href = url
-  a.download = `sad_officine_liste_action.${format}`
+  a.download = `sad_officine_liste_action${suffixe}.${format}`
   a.click()
   URL.revokeObjectURL(url)
 }

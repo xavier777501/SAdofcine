@@ -1,5 +1,10 @@
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import Base, engine
 from app.api.routes.auth import router as auth_router
@@ -46,10 +51,30 @@ app.include_router(parametres_router, prefix=settings.API_V1_PREFIX)
 app.include_router(references_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
 
-@app.get("/")
-def read_root():
-    return {"message": "Bienvenue sur l'API SAD OFFICINE"}
-
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# ── Mode desktop (Electron) : sert le frontend build à la place de la page
+# JSON de dev — STOCKAID_FRONTEND_DIR n'est positionné que par l'app packagée,
+# jamais en développement (uvicorn + Vite séparés sur des ports différents).
+_frontend_dir = os.environ.get("STOCKAID_FRONTEND_DIR")
+
+if _frontend_dir and Path(_frontend_dir).is_dir():
+    _frontend_path = Path(_frontend_dir)
+    _assets_dir = _frontend_path / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        """Sert un fichier statique existant (favicon, etc.), sinon index.html
+        pour laisser react-router gérer la route côté client (SPA)."""
+        candidate = _frontend_path / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_frontend_path / "index.html")
+else:
+    @app.get("/")
+    def read_root():
+        return {"message": "Bienvenue sur l'API SAD OFFICINE"}

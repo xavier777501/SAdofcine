@@ -274,7 +274,7 @@ export default function ListeAction() {
 
   async function handleExport(format) {
     setExportEnCours(format)
-    try { await exportListe(format) } catch { /* silencieux */ } finally { setExportEnCours(null) }
+    try { await exportListe(format, filtreStatut) } catch { /* silencieux */ } finally { setExportEnCours(null) }
   }
 
   async function handleAjuster(id, { qteOverride, inclusionManuelle }) {
