@@ -20,8 +20,11 @@ class ParametreOfficineOut(BaseModel):
 class ParametreOfficineUpdate(BaseModel):
     dl_moy_jours: Optional[int] = Field(default=None, gt=0)
     dl_max_jours: Optional[int] = Field(default=None, gt=0)
-    # Seuls rythmes définis au cahier des charges (section 6.5) : décade ou mensuel.
-    cycle_commande_jours: Optional[Literal[10, 30]] = Field(default=None)
+    # Rythmes couverts par la formule périodique du cahier des charges
+    # (section 6.5) : celle-ci est générique en T (jours entre deux
+    # commandes) — 1=journalière, 10=décade, 30=mensuel sont juste les
+    # valeurs usuelles, pas des cas particuliers de la formule.
+    cycle_commande_jours: Optional[Literal[1, 10, 30]] = Field(default=None)
     cout_commande: Optional[float] = Field(default=None, gt=0)
     taux_detention: Optional[float] = Field(default=None, gt=0, lt=1)
     niveau_service_vital: Optional[float] = Field(default=None, gt=0, lt=1)

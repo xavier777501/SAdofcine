@@ -22,8 +22,9 @@ class ParametreOfficine(BaseModel):
     dl_moy_jours = Column(Integer, nullable=False, default=7)
     dl_max_jours = Column(Integer, nullable=False, default=15)
 
-    # Cycle de commande T (jours) : 10=décade, 30=mensuel — seuls rythmes avec
-    # une formule de quantité définie au cahier des charges (section 6.5).
+    # Cycle de commande T (jours) : 1=journalière, 10=décade, 30=mensuel — la
+    # formule périodique du cahier des charges (section 6.5) est générique en
+    # T, ces trois valeurs sont les rythmes usuels proposés au pharmacien.
     cycle_commande_jours = Column(Integer, nullable=False, default=10)
 
     # Paramètres EOQ

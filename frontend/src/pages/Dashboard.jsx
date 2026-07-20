@@ -6,7 +6,6 @@ import { getKpis, getCommandePlafonnee } from '../services/dashboard'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import RepartitionStockDonut from '../components/RepartitionStockDonut'
 import VentesM1Table from '../components/VentesM1Table'
-import AlerteStrategique from '../components/AlerteStrategique'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -122,9 +121,6 @@ export default function Dashboard() {
           Chargement des données…
         </div>
       )}
-
-      {/* ── Section 7.0 : encart d'alerte, priorité absolue d'affichage ─────── */}
-      {!chargement && aDesReferences && <AlerteStrategique />}
 
       {/* ── KPIs 5 tuiles ─────────────────────────────────────────────────── */}
       {!chargement && kpis && (

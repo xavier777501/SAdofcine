@@ -243,6 +243,34 @@ function LignePlafond({ ligne, reportee, expanded, onToggle, onAjuster, saving }
   )
 }
 
+function FiltreClasse({ valeur, onChange, options }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-slate-400 dark:text-slate-500">Classe :</span>
+      {['TOUS', 'A', 'B', 'C'].map((c) => {
+        const actif = valeur === c
+        const nb = c !== 'TOUS' ? options.filter(l => l.classe === c).length : null
+        return (
+          <button
+            key={c}
+            onClick={() => onChange(c)}
+            className={`tg-tap text-xs font-medium px-2.5 py-1 rounded-full border transition-all ${
+              actif
+                ? c === 'TOUS'
+                  ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent'
+                  : `${CLASSE_CFG[c]} border-transparent`
+                : 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-300'
+            }`}
+          >
+            {c === 'TOUS' ? 'Toutes' : c}
+            {nb !== null && <span className="ml-1 opacity-70">{nb}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function ListeAction() {
   const [liste, setListe] = useState([])
   const [plafond, setPlafond] = useState(null)
@@ -250,6 +278,7 @@ export default function ListeAction() {
   const [exportEnCours, setExportEnCours] = useState(null)
   const [ligneOuverte, setLigneOuverte] = useState(null)
   const [filtreStatut, setFiltreStatut] = useState('TOUS')
+  const [filtreClasse, setFiltreClasse] = useState('TOUS')
   const [ajustementEnCours, setAjustementEnCours] = useState(null)
 
   const charger = useCallback(async (avecSpinner = true) => {
@@ -289,7 +318,13 @@ export default function ListeAction() {
     }
   }
 
-  const listeFiltre = filtreStatut === 'TOUS' ? liste : liste.filter(l => l.statut === filtreStatut)
+  function filtrerParClasse(lignes) {
+    return filtreClasse === 'TOUS' ? lignes : lignes.filter(l => l.classe === filtreClasse)
+  }
+
+  const listeFiltre = filtrerParClasse(
+    filtreStatut === 'TOUS' ? liste : liste.filter(l => l.statut === filtreStatut)
+  )
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-6xl mx-auto space-y-6">
@@ -343,7 +378,9 @@ export default function ListeAction() {
 
       {!chargement && plafondActif && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
-          <div className="flex flex-wrap items-center justify-end gap-2 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+            <FiltreClasse valeur={filtreClasse} onChange={setFiltreClasse} options={liste} />
+            <div className="flex gap-2">
             <button
               onClick={() => handleExport('xlsx')}
               disabled={!!exportEnCours}
@@ -364,6 +401,7 @@ export default function ListeAction() {
               </svg>
               {exportEnCours === 'pdf' ? 'Export…' : 'PDF'}
             </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
@@ -380,7 +418,7 @@ export default function ListeAction() {
                 </tr>
               </thead>
               <tbody>
-                {plafond.hors_plafond.map((ligne) => (
+                {filtrerParClasse(plafond.hors_plafond).map((ligne) => (
                   <LignePlafond
                     key={ligne.id}
                     ligne={ligne}
@@ -390,7 +428,7 @@ export default function ListeAction() {
                     saving={ajustementEnCours === ligne.id}
                   />
                 ))}
-                {plafond.inclus.map((ligne) => (
+                {filtrerParClasse(plafond.inclus).map((ligne) => (
                   <LignePlafond
                     key={ligne.id}
                     ligne={ligne}
@@ -407,7 +445,7 @@ export default function ListeAction() {
                     </td>
                   </tr>
                 )}
-                {plafond.reporte.map((ligne) => (
+                {filtrerParClasse(plafond.reporte).map((ligne) => (
                   <LignePlafond
                     key={ligne.id}
                     ligne={ligne}
@@ -428,9 +466,12 @@ export default function ListeAction() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
 
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {liste.length} référence{liste.length > 1 ? 's' : ''} à traiter
-            </p>
+            <div className="flex items-center gap-4 flex-wrap">
+              <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                {liste.length} référence{liste.length > 1 ? 's' : ''} à traiter
+              </p>
+              <FiltreClasse valeur={filtreClasse} onChange={setFiltreClasse} options={liste} />
+            </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               {['TOUS', 'RUPTURE', 'CRITIQUE', 'COMMANDER'].map(s => {

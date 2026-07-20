@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import PageHeader from '../components/PageHeader'
+import AlerteStrategique from '../components/AlerteStrategique'
 import { getListeAction, getANePasCommander } from '../services/dashboard'
 import { marquerDirection } from '../services/pageTransition'
 
@@ -20,8 +21,8 @@ export default function DecisionsCommande() {
   const [neSourcePasCommander, setNePasCommander] = useState([])
   const [chargement, setChargement] = useState(true)
 
-  useEffect(() => {
-    Promise.all([getListeAction(), getANePasCommander()])
+  const charger = useCallback(() => {
+    return Promise.all([getListeAction(), getANePasCommander()])
       .then(([liste, nePasCommander]) => {
         setACommander(liste)
         setNePasCommander(nePasCommander)
@@ -32,6 +33,8 @@ export default function DecisionsCommande() {
       })
       .finally(() => setChargement(false))
   }, [])
+
+  useEffect(() => { charger() }, [charger])
 
   const urgents = aCommander.filter((l) => l.statut === 'RUPTURE' || l.statut === 'CRITIQUE').slice(0, 8)
   const totalImmobilise = neSourcePasCommander.reduce((s, l) => s + (l.tresorerie_immobilisee || 0), 0)
@@ -48,6 +51,9 @@ export default function DecisionsCommande() {
 
       {!chargement && (
         <>
+          {/* ── Section 7.0 : références stratégiques manquées ──────────── */}
+          <AlerteStrategique onCommande={charger} />
+
           {/* ── À commander en priorité ─────────────────────────────────── */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 p-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
