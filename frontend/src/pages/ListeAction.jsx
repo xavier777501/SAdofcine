@@ -343,6 +343,28 @@ export default function ListeAction() {
 
       {!chargement && plafondActif && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-end gap-2 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+            <button
+              onClick={() => handleExport('xlsx')}
+              disabled={!!exportEnCours}
+              className="tg-tap flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand text-brand hover:bg-brand-light dark:hover:bg-brand/10 transition-colors disabled:opacity-50"
+            >
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden="true">
+                <path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {exportEnCours === 'xlsx' ? 'Export…' : 'Excel'}
+            </button>
+            <button
+              onClick={() => handleExport('pdf')}
+              disabled={!!exportEnCours}
+              className="tg-tap flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            >
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden="true">
+                <path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {exportEnCours === 'pdf' ? 'Export…' : 'PDF'}
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
               <thead>

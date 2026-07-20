@@ -38,9 +38,29 @@ def _sqlite_path_from_url(database_url: str) -> str | None:
     return database_url[len(prefix):]
 
 
+def _checkpoint_wal(db_path: str) -> None:
+    """
+    En mode WAL, les écritures récentes peuvent rester dans le fichier
+    compagnon `<db>-wal` tant que la connexion n'a pas été fermée
+    proprement (ex. app fermée brutalement, plantage) — le fichier
+    principal seul serait alors incomplet. On force ici tout le contenu du
+    WAL dans le fichier principal avant de le copier, pour qu'une sauvegarde
+    du seul fichier .db suffise à tout restaurer.
+    """
+    import sqlite3
+    try:
+        con = sqlite3.connect(db_path, timeout=5)
+        con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        con.close()
+    except sqlite3.Error:
+        pass  # tentative sur une base verrouillée/corrompue : on sauvegarde quand même en l'état
+
+
 def _sauvegarder_base(db_path: str) -> None:
     if not os.path.isfile(db_path):
         return  # première installation, rien à sauvegarder
+
+    _checkpoint_wal(db_path)
 
     backups_dir = os.path.join(os.path.dirname(db_path), "backups")
     os.makedirs(backups_dir, exist_ok=True)
