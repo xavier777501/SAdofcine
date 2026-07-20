@@ -173,3 +173,60 @@ class TestImportHistoriqueLogpharmaGlissant:
         assert response.status_code == 200
         body = response.json()
         assert body["nb_lignes_erreur"] == 1
+
+
+class TestListeDemarrageVed:
+    """Section 6.6 : pré-remplissage automatique du VED au premier import historique."""
+
+    def test_premier_import_pre_coche_vital_si_designation_matche(self, client, token, db_session):
+        headers = {"Authorization": f"Bearer {token}"}
+        # Une seule référence, prix>0 et cmm>0 -> toujours classée A (100% du CA).
+        response = _importer(
+            client, headers, code="A001", designation="Adrénaline injectable 1mg/ml", sorties=120,
+        )
+        assert response.status_code == 200
+
+        ref = db_session.query(Reference).filter(Reference.code == "A001").first()
+        assert ref.classe == "A"
+        assert ref.ved == "Vital"
+
+    def test_premier_import_ne_touche_pas_une_designation_non_reconnue(self, client, token, db_session):
+        headers = {"Authorization": f"Bearer {token}"}
+        response = _importer(client, headers, code="A001", designation="Doliprane 500mg", sorties=120)
+        assert response.status_code == 200
+
+        ref = db_session.query(Reference).filter(Reference.code == "A001").first()
+        assert ref.classe == "A"
+        assert ref.ved is None
+
+    def test_second_import_ne_pre_coche_plus_rien(self, client, token, db_session):
+        headers = {"Authorization": f"Bearer {token}"}
+        # Premier import (initialise l'historique) avec une référence neutre.
+        _importer(client, headers, code="A001", designation="Doliprane 500mg", sorties=120)
+        # Deuxième import : nouvelle référence dont la désignation matcherait
+        # la liste de démarrage — mais ce n'est plus "le premier import".
+        response = _importer(client, headers, code="A002", designation="Insuline rapide", sorties=50)
+        assert response.status_code == 200
+
+        ref = db_session.query(Reference).filter(Reference.code == "A002").first()
+        assert ref is not None
+        assert ref.ved is None
+
+    def test_ved_deja_renseigne_manuellement_nest_jamais_ecrase(self, client, token, db_session):
+        headers = {"Authorization": f"Bearer {token}"}
+        # Une référence déjà connue (créée hors import) avec VED déjà posé par le pharmacien.
+        ref = Reference(
+            officine_id=db_session.query(Officine).first().id,
+            code="A001",
+            designation="Adrénaline injectable 1mg/ml",
+            ved="Désirable",
+            stock_actuel=0,
+        )
+        db_session.add(ref)
+        db_session.commit()
+
+        response = _importer(client, headers, code="A001", designation="Adrénaline injectable 1mg/ml", sorties=120)
+        assert response.status_code == 200
+
+        db_session.refresh(ref)
+        assert ref.ved == "Désirable"

@@ -25,6 +25,16 @@ export async function getCommandePlafonnee() {
   return data
 }
 
+export async function getAlertesStrategiques() {
+  const { data } = await api.get('/dashboard/alertes-strategiques')
+  return data
+}
+
+export async function inclureToutAlertesStrategiques() {
+  const { data } = await api.post('/dashboard/alertes-strategiques/inclure-tout')
+  return data
+}
+
 export async function exportListe(format, statut) {
   const { data } = await api.get('/dashboard/export', {
     params: statut && statut !== 'TOUS' ? { format, statut } : { format },

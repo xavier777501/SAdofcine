@@ -1,7 +1,9 @@
 """
-Vérifie la logique du plafond budgétaire de commande (section 6.7) :
-priorisation en 10 niveaux, exception absolue RUPTURE+Vital hors plafond,
-arrêt séquentiel dès que le montant cumulé atteint le seuil.
+Vérifie la logique du plafond budgétaire de commande (section 6.7, V7) :
+priorisation en 8 niveaux centrée classe ABC + rotation Fast/Slow (le VED ne
+compte plus qu'aux deux tout premiers niveaux), exception absolue
+RUPTURE+Vital hors plafond, arrêt séquentiel dès que le montant cumulé
+atteint le seuil.
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -90,19 +92,20 @@ def _ref(officine_id, code, statut, ved=None, classe="A", fsn="Fast", qte=10, pr
 
 
 class TestPriorite:
-    def test_ordre_des_10_niveaux(self, officine):
+    def test_ordre_des_8_niveaux(self, officine):
         oid = officine.id
         cas = [
-            (_ref(oid, "A", "RUPTURE", ved="Vital"), 1),
-            (_ref(oid, "B", "RUPTURE", ved="Essentiel", classe="A"), 2),
-            (_ref(oid, "C", "CRITIQUE", ved="Vital"), 3),
-            (_ref(oid, "D", "RUPTURE", ved="Désirable"), 4),
-            (_ref(oid, "E", "CRITIQUE", ved="Essentiel", classe="A"), 5),
-            (_ref(oid, "F", "COMMANDER", fsn="Fast", classe="A"), 6),
-            (_ref(oid, "G", "COMMANDER", fsn="Slow", classe="A"), 7),
-            (_ref(oid, "H", "CRITIQUE", classe="B"), 8),
-            (_ref(oid, "I", "COMMANDER", classe="B"), 9),
-            (_ref(oid, "J", "OK", classe="C"), 10),
+            (_ref(oid, "A", "RUPTURE", ved="Vital"), 0),
+            (_ref(oid, "B", "CRITIQUE", ved="Vital", classe="C", fsn="Slow"), 1),
+            (_ref(oid, "C", "RUPTURE", classe="A", fsn="Fast"), 2),
+            (_ref(oid, "D", "RUPTURE", classe="A", fsn="Slow"), 3),
+            (_ref(oid, "E", "RUPTURE", classe="B", fsn="Fast"), 4),
+            (_ref(oid, "F", "CRITIQUE", classe="A", fsn="Fast"), 5),
+            (_ref(oid, "G", "CRITIQUE", classe="A", fsn="Slow"), 6),
+            (_ref(oid, "H", "CRITIQUE", classe="B", fsn="Fast"), 7),
+            (_ref(oid, "I", "COMMANDER", classe="A", fsn="Fast"), 8),
+            (_ref(oid, "J", "RUPTURE", classe="B", fsn="Slow"), 8),
+            (_ref(oid, "K", "CRITIQUE", classe="C"), 8),
         ]
         for ref, attendu in cas:
             assert _priorite(ref) == attendu, f"{ref.code} attendu {attendu}"
@@ -133,17 +136,17 @@ class TestPrioriserEtPlafonner:
         assert resultat_zero["sans_restriction"] is True
 
     def test_arret_sequentiel_au_plafond(self, officine):
-        # 3 références, chacune 1000 FCFA, priorités décroissantes (2, 4, 9)
+        # 3 références, chacune 1000 FCFA, priorités décroissantes (2, 4, 8)
         refs = [
-            _ref(officine.id, "P2", "RUPTURE", ved="Essentiel", classe="A", qte=1, prix=1000),
-            _ref(officine.id, "P4", "RUPTURE", ved="Désirable", qte=1, prix=1000),
-            _ref(officine.id, "P9", "COMMANDER", classe="B", qte=1, prix=1000),
+            _ref(officine.id, "P2", "RUPTURE", classe="A", fsn="Fast", qte=1, prix=1000),
+            _ref(officine.id, "P4", "RUPTURE", classe="B", fsn="Fast", qte=1, prix=1000),
+            _ref(officine.id, "P8", "COMMANDER", classe="C", qte=1, prix=1000),
         ]
         resultat = prioriser_et_plafonner(refs, plafond=1500)
         # Seule la première (1000 FCFA) rentre ; la 2e ferait dépasser 1500 -> reportée,
         # et la 3e est reportée aussi même si elle rentrerait seule (arrêt séquentiel).
         assert [l["code"] for l in resultat["inclus"]] == ["P2"]
-        assert [l["code"] for l in resultat["reporte"]] == ["P4", "P9"]
+        assert [l["code"] for l in resultat["reporte"]] == ["P4", "P8"]
         assert resultat["budget_utilise"] == 1000
         assert resultat["montant_reporte"] == 2000
 

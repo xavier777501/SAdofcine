@@ -17,6 +17,7 @@ from app.models.officine import Officine
 from app.models.user import User
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
+from app.models.parametre_officine import ParametreOfficine
 
 
 @pytest.fixture(autouse=True)
@@ -211,3 +212,93 @@ class TestImportCommandeLogpharma:
         body = response.json()
         assert body["nb_lignes_ok"] == 0
         assert body["nb_lignes_erreur"] == 1
+
+
+class TestModeCommandeCiblee:
+    """Section 4ter : Mode 2 "commande ciblée sur cet import"."""
+
+    def _importer_commande(self, client, headers, mode_ciblee=None, **kwargs):
+        data = {} if mode_ciblee is None else {"mode_ciblee": "true" if mode_ciblee else "false"}
+        return client.post(
+            "/api/v1/imports/commande",
+            files={"file": ("logpharma.xlsx", _fichier_logpharma(**kwargs), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            data=data,
+            headers=headers,
+        )
+
+    def test_defaut_mode_complet_ne_pose_pas_le_drapeau(self, client, token, db_session, reference_deja_calculee):
+        headers = {"Authorization": f"Bearer {token}"}
+        response = self._importer_commande(client, headers, stock=180, sorties=90)
+        assert response.status_code == 200
+
+        params = db_session.query(ParametreOfficine).filter(
+            ParametreOfficine.officine_id == reference_deja_calculee.officine_id
+        ).first()
+        assert params.mode_commande_ciblee is False
+
+        db_session.refresh(reference_deja_calculee)
+        # Le drapeau de périmètre est quand même posé sur la référence importée
+        # (utile si le pharmacien active le mode ciblé plus tard) — seul le
+        # comportement de filtrage dépend du réglage mode_commande_ciblee.
+        assert reference_deja_calculee.dans_dernier_import_commande is True
+
+    def test_mode_ciblee_persiste_et_restreint_la_liste_daction(self, client, token, db_session, officine):
+        headers = {"Authorization": f"Bearer {token}"}
+        # Deux références actionnables : seule A001 sera dans le fichier importé.
+        ref_importee = Reference(
+            officine_id=officine.id, code="A001", designation="Doliprane 500mg",
+            prix_cession=500.0, prix_public=800.0, stock_actuel=5.0, classe="A", fsn="Fast",
+            cmm=100.0, cmmax=130.0, sigma=10.0, z_service=1.645, ss=16.45, pc=116.45,
+            niveau_recompletement=250.0, statut="RUPTURE",
+        )
+        ref_oubliee = Reference(
+            officine_id=officine.id, code="B002", designation="Efferalgan 500mg",
+            prix_cession=400.0, prix_public=700.0, stock_actuel=0.0, classe="A", fsn="Fast",
+            cmm=80.0, cmmax=100.0, sigma=8.0, z_service=1.645, ss=13.0, pc=93.0,
+            niveau_recompletement=200.0, statut="RUPTURE",
+        )
+        db_session.add_all([ref_importee, ref_oubliee])
+        db_session.commit()
+
+        # Stock=0 après réassort partiel très insuffisant : A001 reste en RUPTURE,
+        # tout comme B002 (jamais touchée par cet import) — seule la présence
+        # dans le fichier importé doit départager les deux en mode ciblé.
+        response = self._importer_commande(client, headers, mode_ciblee=True, code="A001", stock=0, sorties=90)
+        assert response.status_code == 200
+
+        params = db_session.query(ParametreOfficine).filter(
+            ParametreOfficine.officine_id == officine.id
+        ).first()
+        assert params.mode_commande_ciblee is True
+
+        db_session.refresh(ref_importee)
+        db_session.refresh(ref_oubliee)
+        assert ref_importee.statut == "RUPTURE"
+        assert ref_oubliee.statut == "RUPTURE"  # jamais recalculée par cet import
+
+        liste = client.get("/api/v1/dashboard/liste-action", headers=headers).json()
+        # B002 n'est pas dans le fichier importé -> exclue de la liste en mode
+        # ciblé, même si elle est toujours objectivement en RUPTURE.
+        assert [l["code"] for l in liste] == ["A001"]
+        assert ref_oubliee.dans_dernier_import_commande is False
+
+    def test_reimport_reinitialise_le_perimetre_precedent(self, client, token, db_session, officine):
+        headers = {"Authorization": f"Bearer {token}"}
+        ref_a = Reference(officine_id=officine.id, code="A001", designation="Doliprane", stock_actuel=0, prix_cession=100)
+        ref_b = Reference(officine_id=officine.id, code="B002", designation="Efferalgan", stock_actuel=0, prix_cession=100)
+        db_session.add_all([ref_a, ref_b])
+        db_session.commit()
+
+        self._importer_commande(client, headers, mode_ciblee=True, code="A001")
+        db_session.refresh(ref_a)
+        db_session.refresh(ref_b)
+        assert ref_a.dans_dernier_import_commande is True
+        assert ref_b.dans_dernier_import_commande is False
+
+        # Deuxième import de commande ne contenant que B002 : le périmètre
+        # précédent (A001) doit être remis à zéro, pas cumulé.
+        self._importer_commande(client, headers, mode_ciblee=True, code="B002")
+        db_session.refresh(ref_a)
+        db_session.refresh(ref_b)
+        assert ref_a.dans_dernier_import_commande is False
+        assert ref_b.dans_dernier_import_commande is True

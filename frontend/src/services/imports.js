@@ -49,9 +49,16 @@ export async function runImport(file) {
   return data
 }
 
-export async function runImportCommande(file) {
+/**
+ * `modeCiblee` (section 4ter) : Mode 2 "commande ciblée sur cet import" —
+ * ne restreint que le périmètre de la liste de commande générée ensuite (et
+ * du plafond), jamais l'historique ni les calculs. Décoché par défaut (Mode
+ * 1, "commande complète").
+ */
+export async function runImportCommande(file, modeCiblee = false) {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('mode_ciblee', modeCiblee ? 'true' : 'false')
   const { data } = await api.post('/imports/commande', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: UPLOAD_TIMEOUT_MS,

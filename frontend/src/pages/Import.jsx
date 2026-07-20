@@ -53,6 +53,7 @@ export default function Import() {
   const [maintenanceStatut, setMaintenanceStatut] = useState(null) // { statut, result?, error? }
   const [annuelStatus, setAnnuelStatus] = useState(null) // { statut, result?, error? }
   const [file, setFile] = useState(null)
+  const [modeCiblee, setModeCiblee] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [showErreurs, setShowErreurs] = useState(false)
   const [error, setError] = useState('')
@@ -114,7 +115,7 @@ export default function Import() {
     setFile(selectedFile)
     setImporting(true)
     try {
-      const result = await runImportCommande(selectedFile)
+      const result = await runImportCommande(selectedFile, modeCiblee)
       setImportResult(result)
       setShowErreurs(false)
       setStep(3)
@@ -256,6 +257,7 @@ export default function Import() {
     setMaintenanceStatut(null)
     setAnnuelStatus(null)
     setFile(null)
+    setModeCiblee(false)
     setImportResult(null)
     setImporting(false)
     setError('')
@@ -697,6 +699,26 @@ export default function Import() {
               Sélectionnez l'export Logpharma "Listing de Produit à Commander".
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Format .xlsx uniquement — pas de mappage nécessaire</p>
+
+            <label className="tg-tap mx-auto mb-5 flex max-w-md items-start gap-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 px-4 py-3 text-left cursor-pointer">
+              <input
+                type="checkbox"
+                checked={modeCiblee}
+                onChange={(e) => setModeCiblee(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-brand focus:ring-brand"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Limiter cette commande aux références importées
+                </span>
+                <span className="block text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  Décoché (par défaut) : commande complète sur tout le stock, y compris les références oubliées
+                  hors de ce fichier. Coché : ne propose que les références présentes dans ce fichier — utile pour
+                  une commande rapide et ponctuelle.
+                </span>
+              </span>
+            </label>
+
             <label className="tg-tap inline-block rounded-lg bg-brand-gradient px-4 py-2.5 font-semibold text-white shadow-sm cursor-pointer transition-all hover:shadow-brand hover:-translate-y-0.5">
               {importing ? 'Import en cours…' : 'Choisir le fichier Logpharma'}
               <input

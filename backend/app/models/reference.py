@@ -45,3 +45,8 @@ class Reference(BaseModel):
     # --- Arbitrage manuel du pharmacien (section 6.7 : "garde toujours la main") ---
     qte_a_commander_override = Column(Float, nullable=True)  # remplace la quantité suggérée si renseignée
     inclusion_manuelle = Column(String, nullable=True)       # "inclure" / "exclure" / None (suivi automatique)
+
+    # Présente dans le dernier import de commande Type 2 (section 4ter) —
+    # utilisé pour restreindre la liste d'action/le plafond quand le mode de
+    # commande "ciblée sur l'import" est actif sur l'officine.
+    dans_dernier_import_commande = Column(Boolean, nullable=False, default=False)

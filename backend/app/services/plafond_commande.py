@@ -17,44 +17,36 @@ STATUTS_ACTIONNABLES = ("RUPTURE", "CRITIQUE", "COMMANDER")
 
 def _priorite(ref: Reference) -> float:
     """
-    Ordre de priorité en 10 niveaux, tel que défini section 6.7 (du plus
-    urgent au moins urgent). Les combinaisons non couvertes explicitement par
-    le tableau du cahier des charges sont rattachées au niveau le plus proche
-    de leur statut, par prudence (voir commentaires ci-dessous).
+    Ordre de priorité en 8 niveaux (+ hors plafond), tel que défini section
+    6.7 du cahier des charges V7 (du plus urgent au moins urgent). Logique
+    centrée sur la classe ABC et la vitesse de rotation (Fast/Slow) — le VED
+    ne joue plus de rôle qu'aux deux tout premiers niveaux (hors plafond, et
+    CRITIQUE+Vital qui passe devant peu importe sa classe/rotation).
+
+    Toute combinaison non listée explicitement (ex. RUPTURE/CRITIQUE classe B
+    Slow, classe C...) tombe dans "le reste" (niveau 8, section 6.7), qui
+    n'est départagé que par la valeur FCFA — géré par le tri secondaire dans
+    prioriser_et_plafonner, pas ici.
     """
     statut, ved, classe, fsn = ref.statut, ref.ved, ref.classe, ref.fsn
 
     if statut == "RUPTURE" and ved == "Vital":
-        return 1  # HORS PLAFOND — traité séparément, jamais via cette liste
-    if statut == "RUPTURE" and ved == "Essentiel" and classe == "A":
-        return 2
+        return 0  # HORS PLAFOND — traité séparément, jamais via cette liste
     if statut == "CRITIQUE" and ved == "Vital":
+        return 1  # ligne de sécurité, quelle que soit la classe/rotation
+    if statut == "RUPTURE" and classe == "A" and fsn == "Fast":
+        return 2
+    if statut == "RUPTURE" and classe == "A" and fsn == "Slow":
         return 3
-    if statut == "RUPTURE" and (ved == "Désirable" or classe == "B"):
+    if statut == "RUPTURE" and classe == "B" and fsn == "Fast":
         return 4
-    if statut == "CRITIQUE" and ved == "Essentiel" and classe == "A":
+    if statut == "CRITIQUE" and classe == "A" and fsn == "Fast":
         return 5
-    if statut == "COMMANDER" and fsn == "Fast" and classe == "A":
+    if statut == "CRITIQUE" and classe == "A" and fsn == "Slow":
         return 6
-    if statut == "COMMANDER" and fsn == "Slow" and classe == "A":
+    if statut == "CRITIQUE" and classe == "B" and fsn == "Fast":
         return 7
-    if statut == "CRITIQUE" and classe == "B":
-        return 8
-    if statut == "COMMANDER" and classe == "B":
-        return 9
-    if classe == "C":
-        return 10  # dernier servi, quel que soit le statut (voir section 6.7)
-
-    # Combinaisons non listées explicitement (ex: RUPTURE non-renseigné,
-    # CRITIQUE Désirable...) : rattachées juste après le dernier niveau connu
-    # de leur statut, pour rester prudent sans contredire le tableau.
-    if statut == "RUPTURE":
-        return 4.5
-    if statut == "CRITIQUE":
-        return 8.5
-    if statut == "COMMANDER":
-        return 9.5
-    return 11
+    return 8  # le reste : COMMANDER (A/B/C), CRITIQUE/RUPTURE classe C, etc.
 
 
 def _qte_effective(ref: Reference) -> float:
@@ -104,7 +96,10 @@ def prioriser_et_plafonner(references: list[Reference], plafond: Optional[float]
 
     hors_plafond_refs = [r for r in actionnables if r.statut == "RUPTURE" and r.ved == "Vital"]
     reste = [r for r in actionnables if not (r.statut == "RUPTURE" and r.ved == "Vital")]
-    reste.sort(key=_priorite)
+    # Tri secondaire par valeur FCFA décroissante : départage les références
+    # d'un même niveau de priorité (surtout le niveau 8 "le reste", qui
+    # regroupe des statuts/classes hétérogènes — section 6.7 V7).
+    reste.sort(key=lambda r: (_priorite(r), -_valeur_fcfa(r)))
 
     hors_plafond = [_ligne(r, hors_plafond=True) for r in hors_plafond_refs]
 

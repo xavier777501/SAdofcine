@@ -15,30 +15,38 @@ from app.schemas.dashboard import (
     VenteM1Out,
     LigneNePasCommanderOut,
     CommandePlafonneeOut,
+    AlertesStrategiquesOut,
 )
 from app.services.texte_decision import generer_texte
 from app.services.export_dashboard import generer_xlsx, generer_pdf
 from app.services.plafond_commande import prioriser_et_plafonner
 from app.services.calcul_officine import get_or_create_parametres
+from app.services.alertes_strategiques import calculer_alertes_strategiques, references_qualifiees_id
 
 router = APIRouter(prefix="/dashboard", tags=["Tableau de pilotage"])
 
 STATUT_ORDRE = {"RUPTURE": 0, "CRITIQUE": 1, "COMMANDER": 2}
+CLASSE_ORDRE = {"A": 0, "B": 1, "C": 2}
 
 
-def _lignes_action(officine_id, db: Session) -> list[dict]:
-    """Construit la liste d'action triée par urgence."""
-    refs = (
-        db.query(Reference)
-        .filter(
-            Reference.officine_id == officine_id,
-            or_(
-                Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"]),
-                Reference.inclusion_manuelle == "inclure",
-            ),
-        )
-        .all()
-    )
+def _lignes_action(officine_id, db: Session, filtrer_dans_import: bool = False) -> list[dict]:
+    """
+    Construit la liste d'action triée par urgence.
+    `filtrer_dans_import` (section 4ter, Mode 2 "commande ciblée") : ne
+    restreint que le périmètre de cette liste, jamais l'historique ni les
+    calculs — donc jamais utilisé pour l'encart 7.0 (alertes stratégiques).
+    """
+    conditions = [
+        Reference.officine_id == officine_id,
+        or_(
+            Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"]),
+            Reference.inclusion_manuelle == "inclure",
+        ),
+    ]
+    if filtrer_dans_import:
+        conditions.append(Reference.dans_dernier_import_commande.is_(True))
+
+    refs = db.query(Reference).filter(*conditions).all()
 
     # US-D8 : une référence Non-moving non Vitale a sa quantité neutralisée à 0
     # et n'a donc rien à faire dans la liste d'action (section 7 du cahier des charges).
@@ -85,8 +93,48 @@ def _lignes_action(officine_id, db: Session) -> list[dict]:
             ),
         })
 
-    lignes.sort(key=lambda l: STATUT_ORDRE.get(l["statut"], 99))
+    # Section 7.1 (V7) : à l'intérieur d'un même statut, tri secondaire par
+    # classe ABC puis, à classe égale, par valeur FCFA décroissante — sinon
+    # une référence classe C à faible enjeu peut apparaître avant une
+    # référence classe A à fort impact au sein d'un même statut.
+    lignes.sort(key=lambda l: (
+        STATUT_ORDRE.get(l["statut"], 99),
+        CLASSE_ORDRE.get(l["classe"], 3),
+        -l["valeur_fcfa"],
+    ))
     return lignes
+
+
+# ── Encart d'alerte "Références stratégiques manquées" (section 7.0) ────────
+# Priorité absolue d'affichage : jamais scopé par le mode de commande ciblée
+# (section 4ter) — toujours l'historique complet, quel que soit ce réglage.
+
+@router.get("/alertes-strategiques", response_model=AlertesStrategiquesOut)
+def get_alertes_strategiques(
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    return calculer_alertes_strategiques(officine.id, db)
+
+
+@router.post("/alertes-strategiques/inclure-tout")
+def inclure_tout_alertes_strategiques(
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Bouton "Commander ces références" (section 7.0) : force la présence de
+    toutes les références actuellement qualifiées dans la liste de commande,
+    via le mécanisme d'arbitrage manuel déjà existant (section 6.7) — donc
+    même hors plafond ou hors périmètre ciblé.
+    """
+    ids = references_qualifiees_id(officine.id, db)
+    if ids:
+        db.query(Reference).filter(Reference.id.in_(ids)).update(
+            {Reference.inclusion_manuelle: "inclure"}, synchronize_session=False
+        )
+        db.commit()
+    return {"nb_references_incluses": len(ids)}
 
 
 # ── US-E1 : KPIs ─────────────────────────────────────────────────────────────
@@ -109,6 +157,12 @@ def get_kpis(
     # US-D8 : les Non-moving non Vitales sont neutralisées, donc exclues des
     # comptes actionnables — sinon les tuiles ne correspondraient plus à la liste.
     actionnables = [r for r in refs if not (r.fsn == "Non-moving" and r.ved != "Vital")]
+
+    # Section 4ter : en mode "commande ciblée", les tuiles de commande (pas le
+    # nombre total de références du catalogue) ne portent que sur le périmètre
+    # du dernier import de commande — jamais l'encart 7.0, absent de ce calcul.
+    if params.mode_commande_ciblee:
+        actionnables = [r for r in actionnables if r.dans_dernier_import_commande]
 
     nb_rupture   = sum(1 for r in actionnables if r.statut == "RUPTURE")
     nb_critique  = sum(1 for r in actionnables if r.statut == "CRITIQUE")
@@ -147,7 +201,9 @@ def get_liste_action(
     Inclut un texte de décision en langage clair pour chaque référence.
     Les références OK et Non-moving non vitales sont exclues.
     """
-    return _lignes_action(officine.id, db)
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+    return _lignes_action(officine.id, db, filtrer_dans_import=params.mode_commande_ciblee)
 
 
 # ── Ventes du mois dernier (M-1), toutes références confondues ──────────────
@@ -256,6 +312,8 @@ def get_commande_plafonnee(
     db.commit()
 
     refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
+    if params.mode_commande_ciblee:
+        refs = [r for r in refs if r.dans_dernier_import_commande]
     return prioriser_et_plafonner(refs, params.plafond_commande_fcfa)
 
 
@@ -275,7 +333,9 @@ def export_liste_action(
     (Rupture/Critique/Commander) — doit refléter le filtre actif à l'écran,
     sinon l'export ne correspond pas à ce que le pharmacien regarde.
     """
-    lignes = _lignes_action(officine.id, db)
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+    lignes = _lignes_action(officine.id, db, filtrer_dans_import=params.mode_commande_ciblee)
     if statut:
         lignes = [l for l in lignes if l["statut"] == statut]
     nom = officine.nom

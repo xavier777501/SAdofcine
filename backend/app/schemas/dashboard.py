@@ -84,3 +84,23 @@ class CommandePlafonneeOut(BaseModel):
     rupture_non_vitale_reportee: bool
 
     model_config = {"from_attributes": False}
+
+
+class AlerteStrategiqueOut(BaseModel):
+    id: str
+    code: str
+    designation: str
+    classe: Optional[str]
+    statut: str                    # RUPTURE / CRITIQUE
+    jours_rupture: int             # estimé, arrondi à l'entier supérieur
+    ventes_perdues_fcfa: float     # estimé — (CMM/30) x jours_rupture x prix_public
+
+    model_config = {"from_attributes": False}
+
+
+class AlertesStrategiquesOut(BaseModel):
+    references: list[AlerteStrategiqueOut]
+    nb_references: int
+    ventes_perdues_totales_fcfa: float
+
+    model_config = {"from_attributes": False}

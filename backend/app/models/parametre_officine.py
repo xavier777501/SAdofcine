@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, Integer, ForeignKey, Uuid
+from sqlalchemy import Column, Float, Integer, Boolean, ForeignKey, Uuid
 from app.models.base import BaseModel
 
 
@@ -42,3 +42,9 @@ class ParametreOfficine(BaseModel):
     # des charges. None/vide = pas de restriction, toutes les références
     # recommandées sont affichées sans limite.
     plafond_commande_fcfa = Column(Float, nullable=True, default=None)
+
+    # Mode de commande "ciblée sur l'import" (section 4ter du cahier des
+    # charges) : quand actif, la liste d'action et le plafond ne portent que
+    # sur les références présentes dans le dernier import de commande (Type
+    # 2), au lieu de l'historique complet. L'encart 7.0 n'est jamais concerné.
+    mode_commande_ciblee = Column(Boolean, nullable=False, default=False)

@@ -6,6 +6,7 @@ import { getKpis, getCommandePlafonnee } from '../services/dashboard'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import RepartitionStockDonut from '../components/RepartitionStockDonut'
 import VentesM1Table from '../components/VentesM1Table'
+import AlerteStrategique from '../components/AlerteStrategique'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ function formatDateHeureFr(date) {
 function KpiTile({ label, value, borderColor, badge, iconColor, icon, sousLabel }) {
   return (
     <div className={`group relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 border-l-4 ${borderColor} pl-5 pr-4 py-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5`}>
-      <span className={`absolute top-3.5 right-3.5 flex h-8 w-8 items-center justify-center rounded-full ${badge} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>
+      <span className={`absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full ${badge} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>
         {icon}
       </span>
       <p className="text-3xl font-extrabold tabular-nums leading-none text-slate-900 dark:text-slate-100">{value}</p>
@@ -122,6 +123,9 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Section 7.0 : encart d'alerte, priorité absolue d'affichage ─────── */}
+      {!chargement && aDesReferences && <AlerteStrategique />}
+
       {/* ── KPIs 5 tuiles ─────────────────────────────────────────────────── */}
       {!chargement && kpis && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -131,7 +135,7 @@ export default function Dashboard() {
             borderColor="border-l-danger"
             badge="bg-danger-light dark:bg-danger/10"
             iconColor="text-danger"
-            icon={<svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true"><path d="M12 9v4m0 4h.01M4.5 19h15a1 1 0 0 0 .87-1.5l-7.5-13a1 1 0 0 0-1.74 0l-7.5 13A1 1 0 0 0 4.5 19Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            icon={<svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5" aria-hidden="true"><path d="M12 9v4m0 4h.01M4.5 19h15a1 1 0 0 0 .87-1.5l-7.5-13a1 1 0 0 0-1.74 0l-7.5 13A1 1 0 0 0 4.5 19Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           />
           <KpiTile
             label="Critiques"
@@ -139,7 +143,7 @@ export default function Dashboard() {
             borderColor="border-l-orange-500"
             badge="bg-orange-50 dark:bg-orange-500/10"
             iconColor="text-orange-600 dark:text-orange-400"
-            icon={<svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true"><path d="M12 7v6m0 4h.01M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>}
+            icon={<svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5" aria-hidden="true"><path d="M12 7v6m0 4h.01M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>}
           />
           <KpiTile
             label="À commander"
@@ -147,7 +151,7 @@ export default function Dashboard() {
             borderColor="border-l-amber-500"
             badge="bg-amber-50 dark:bg-amber-500/10"
             iconColor="text-amber-600 dark:text-amber-400"
-            icon={<svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true"><path d="M3 3h2l.4 2M7 13h10l3-8H5.4M7 13 5.4 5M7 13l-1.7 3.4A1 1 0 0 0 6.2 18H17M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            icon={<svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5" aria-hidden="true"><path d="M3 3h2l.4 2M7 13h10l3-8H5.4M7 13 5.4 5M7 13l-1.7 3.4A1 1 0 0 0 6.2 18H17M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           />
           <KpiTile
             label="Valeur commande"
@@ -156,7 +160,7 @@ export default function Dashboard() {
             borderColor="border-l-info"
             badge="bg-info-light dark:bg-info/10"
             iconColor="text-info"
-            icon={<svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true"><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>}
+            icon={<svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5" aria-hidden="true"><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>}
           />
           <KpiTile
             label="Trésorerie libérable"
@@ -164,7 +168,7 @@ export default function Dashboard() {
             borderColor="border-l-brand"
             badge="bg-brand-light dark:bg-brand/10"
             iconColor="text-brand-dark dark:text-brand"
-            icon={<svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true"><path d="M12 4v16M8 8h5a2 2 0 0 1 0 4H8v-4Zm0 4h6a2 2 0 0 1 0 4H8v-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            icon={<svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5" aria-hidden="true"><path d="M12 4v16M8 8h5a2 2 0 0 1 0 4H8v-4Zm0 4h6a2 2 0 0 1 0 4H8v-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           />
         </div>
       )}

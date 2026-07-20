@@ -3,7 +3,7 @@ import tempfile
 import os
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,11 @@ from app.models.officine import Officine
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
 from app.schemas.imports import ImportLogOut, MappingSave
-from app.services.calcul_officine import calculer_toutes_references, recalculer_apres_commande
+from app.services.calcul_officine import (
+    calculer_toutes_references,
+    get_or_create_parametres,
+    recalculer_apres_commande,
+)
 from app.services.file_parser import (
     CHAMPS_CIBLES,
     apply_mapping,
@@ -24,6 +28,7 @@ from app.services.file_parser import (
     parse_file,
     parse_commande_logpharma,
 )
+from app.services.ved_starter_list import correspond_liste_demarrage
 
 router = APIRouter(prefix="/imports", tags=["Import de données"])
 
@@ -235,6 +240,7 @@ async def import_file(
 @router.post("/commande", response_model=ImportLogOut)
 async def import_commande_logpharma(
     file: UploadFile = File(...),
+    mode_ciblee: bool = Form(False),
     officine: Officine = Depends(get_current_officine),
     db: Session = Depends(get_db),
 ):
@@ -250,6 +256,10 @@ async def import_commande_logpharma(
     Les sorties de la période sont aussi lues et conservées par référence
     (affichées au pharmacien sur la liste d'action) et sommées pour ce rapport
     d'import, afin de détailler ce qui s'est vendu depuis la dernière commande.
+
+    `mode_ciblee` (section 4ter) : mémorisé sur l'officine et n'affecte que le
+    périmètre de la liste de commande générée ensuite (et du plafond) — jamais
+    l'historique, les calculs, ni l'encart d'alerte 7.0 (toujours plein périmètre).
     """
     content = await file.read()
     if len(content) > MAX_BYTES:
@@ -262,6 +272,15 @@ async def import_commande_logpharma(
         lignes = parse_commande_logpharma(content)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    params = get_or_create_parametres(officine.id, db)
+    params.mode_commande_ciblee = mode_ciblee
+
+    # Repart de zéro à chaque import de commande : seules les références
+    # effectivement présentes dans CE fichier doivent porter le drapeau.
+    db.query(Reference).filter(Reference.officine_id == officine.id).update(
+        {Reference.dans_dernier_import_commande: False}, synchronize_session=False
+    )
 
     nb_ok = 0
     nb_err = 0
@@ -282,6 +301,7 @@ async def import_commande_logpharma(
         sorties = max(0.0, ligne.get("sorties_periode") or 0.0)
         ref.stock_actuel = ligne["stock_actuel"]
         ref.sorties_derniere_commande = sorties
+        ref.dans_dernier_import_commande = True
         sorties_totales += sorties
         nb_ok += 1
 
@@ -339,6 +359,15 @@ async def import_historique_logpharma(
         lignes = parse_commande_logpharma(content)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    # Même logique que /imports/etat : capturée AVANT ce traitement, car il
+    # va lui-même poser des CMM et rendrait le test faussement positif après coup.
+    premier_import_historique = (
+        db.query(Reference)
+        .filter(Reference.officine_id == officine.id, Reference.cmm.isnot(None))
+        .first()
+        is None
+    )
 
     # Faire glisser l'historique d'un cran pour TOUTES les références déjà
     # connues de l'officine, avant d'insérer le nouveau mois : le mois 12
@@ -404,6 +433,28 @@ async def import_historique_logpharma(
 
     # Recalcul complet du moteur SAD (CMM/sigma/ABC/FSN/SS/PC dépendent des 12 mois)
     calculer_toutes_references(officine.id, db)
+
+    if premier_import_historique:
+        # Section 6.6 : pré-remplissage automatique du VED au premier import,
+        # une fois les classes ABC connues (le VED ne concerne que A/B — les
+        # références déjà renseignées manuellement ne sont jamais écrasées).
+        refs_ab = (
+            db.query(Reference)
+            .filter(
+                Reference.officine_id == officine.id,
+                Reference.classe.in_(("A", "B")),
+                Reference.ved.is_(None),
+            )
+            .all()
+        )
+        for ref in refs_ab:
+            if correspond_liste_demarrage(ref.designation):
+                ref.ved = "Vital"
+        # Le Z de service et donc le SS dépendent du VED : deuxième passe
+        # nécessaire pour que la ligne de sécurité "CRITIQUE + Vital" soit
+        # correcte dès ce premier import (section 6.7).
+        db.flush()
+        calculer_toutes_references(officine.id, db)
 
     import_log = ImportLog(
         officine_id=officine.id,
