@@ -36,15 +36,19 @@ def _lignes_action(officine_id, db: Session, filtrer_dans_import: bool = False) 
     restreint que le périmètre de cette liste, jamais l'historique ni les
     calculs — donc jamais utilisé pour l'encart 7.0 (alertes stratégiques).
     """
-    conditions = [
-        Reference.officine_id == officine_id,
-        or_(
-            Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"]),
-            Reference.inclusion_manuelle == "inclure",
-        ),
-    ]
+    statut_actionnable = Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"])
+    conditions = [Reference.officine_id == officine_id]
     if filtrer_dans_import:
-        conditions.append(Reference.dans_dernier_import_commande.is_(True))
+        # Une inclusion manuelle est une garantie explicite du pharmacien :
+        # elle passe toujours, même hors périmètre ciblé (section 4ter) —
+        # seules les références actionnables "normales" sont restreintes au
+        # fichier importé.
+        conditions.append(or_(
+            Reference.inclusion_manuelle == "inclure",
+            statut_actionnable & Reference.dans_dernier_import_commande.is_(True),
+        ))
+    else:
+        conditions.append(or_(statut_actionnable, Reference.inclusion_manuelle == "inclure"))
 
     refs = db.query(Reference).filter(*conditions).all()
 

@@ -179,10 +179,27 @@ class TestArbitrageManuel:
         assert resultat["inclus"] == []
         assert resultat["reporte"] == []
 
-    def test_inclusion_manuelle_force_une_reference_ok(self, officine):
+    def test_inclusion_manuelle_force_une_reference_ok_hors_plafond(self, officine):
+        # Une inclusion manuelle est une garantie explicite : elle doit
+        # vraiment passer hors plafond, pas seulement entrer dans le tri
+        # normal (où le plafond pourrait quand même la reporter).
         refs = [_ref(officine.id, "OK1", "OK", classe="A", qte=0, prix=1000, inclusion="inclure")]
         resultat = prioriser_et_plafonner(refs, plafond=None)
-        assert [l["code"] for l in resultat["inclus"]] == ["OK1"]
+        assert [l["code"] for l in resultat["hors_plafond"]] == ["OK1"]
+        assert resultat["inclus"] == []
+
+    def test_inclusion_manuelle_bypasse_reellement_le_plafond(self, officine):
+        # Bug corrigé : avant, forcer l'inclusion d'une référence déjà
+        # actionnable (RUPTURE/CRITIQUE/COMMANDER) ne changeait rien puisque
+        # rien ne l'exemptait du plafond — elle pouvait quand même finir
+        # reportée, rendant le bouton "Inclure quand même (hors plafond)"
+        # inopérant. Ici, plafond=100 est trop bas pour inclure P1 (1000 FCFA)
+        # via le tri normal, mais l'inclusion manuelle doit la faire passer.
+        refs = [_ref(officine.id, "P1", "CRITIQUE", classe="C", qte=1, prix=1000, inclusion="inclure")]
+        resultat = prioriser_et_plafonner(refs, plafond=100)
+        assert [l["code"] for l in resultat["hors_plafond"]] == ["P1"]
+        assert resultat["reporte"] == []
+        assert resultat["inclus"] == []
 
     def test_override_quantite_remplace_la_suggestion(self, officine):
         refs = [_ref(officine.id, "A", "COMMANDER", classe="B", qte=10, prix=1000, qte_override=25)]

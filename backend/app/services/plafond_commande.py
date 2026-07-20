@@ -94,8 +94,17 @@ def prioriser_et_plafonner(references: list[Reference], plafond: Optional[float]
         if r.inclusion_manuelle == "inclure" or (r.statut in STATUTS_ACTIONNABLES and r.inclusion_manuelle != "exclure")
     ]
 
-    hors_plafond_refs = [r for r in actionnables if r.statut == "RUPTURE" and r.ved == "Vital"]
-    reste = [r for r in actionnables if not (r.statut == "RUPTURE" and r.ved == "Vital")]
+    # Une inclusion manuelle ("inclure") est une garantie explicite du
+    # pharmacien : elle doit vraiment passer hors plafond, pas seulement
+    # entrer dans le tri par priorité (où le plafond pourrait quand même la
+    # reporter) — sinon les boutons "Inclure quand même (hors plafond)" et
+    # "Commander ces références" (encart 7.0) n'auraient aucun effet visible
+    # sur une référence déjà actionnable.
+    def _hors_plafond(r):
+        return (r.statut == "RUPTURE" and r.ved == "Vital") or r.inclusion_manuelle == "inclure"
+
+    hors_plafond_refs = [r for r in actionnables if _hors_plafond(r)]
+    reste = [r for r in actionnables if not _hors_plafond(r)]
     # Tri secondaire par valeur FCFA décroissante : départage les références
     # d'un même niveau de priorité (surtout le niveau 8 "le reste", qui
     # regroupe des statuts/classes hétérogènes — section 6.7 V7).

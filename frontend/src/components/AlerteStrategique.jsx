@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getAlertesStrategiques, inclureToutAlertesStrategiques } from '../services/dashboard'
+import { marquerDirection } from '../services/pageTransition'
 
 function formatFCFA(val) {
   if (!val && val !== 0) return '—'
@@ -12,7 +14,8 @@ function formatFCFA(val) {
  * page "Quoi commander", pour rester bien visible sans se mêler aux tuiles
  * KPI du tableau de bord.
  */
-export default function AlerteStrategique({ onCommande }) {
+export default function AlerteStrategique() {
+  const navigate = useNavigate()
   const [alertes, setAlertes] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [commandeEnCours, setCommandeEnCours] = useState(false)
@@ -28,7 +31,13 @@ export default function AlerteStrategique({ onCommande }) {
     setCommandeEnCours(true)
     try {
       await inclureToutAlertesStrategiques()
-      onCommande?.()
+      // Navigation vers "Liste d'action" plutôt qu'un simple rechargement sur
+      // place : c'est là que l'effet du bouton se voit vraiment (badge "hors
+      // plafond", inclusion forcée malgré le plafond budgétaire ou le mode
+      // commande ciblée) — rester sur "Quoi commander" ne montrait rien de
+      // nouveau puisque ces références y étaient déjà visibles.
+      marquerDirection('/quoi-commander', '/liste-action')
+      navigate('/liste-action', { viewTransition: true })
     } finally {
       setCommandeEnCours(false)
     }

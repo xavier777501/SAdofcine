@@ -302,3 +302,21 @@ class TestModeCommandeCiblee:
         db_session.refresh(ref_b)
         assert ref_a.dans_dernier_import_commande is False
         assert ref_b.dans_dernier_import_commande is True
+
+    def test_inclusion_manuelle_passe_meme_hors_perimetre_cible(self, client, token, db_session, officine):
+        # Section 4ter : une inclusion manuelle (ex. bouton "Commander ces
+        # références" de l'encart 7.0) doit toujours apparaître, même pour
+        # une référence absente du dernier import de commande en mode ciblé.
+        headers = {"Authorization": f"Bearer {token}"}
+        ref_oubliee = Reference(
+            officine_id=officine.id, code="OUB1", designation="Oubliée", stock_actuel=0,
+            prix_cession=100, statut="CRITIQUE", inclusion_manuelle="inclure",
+            dans_dernier_import_commande=False,
+        )
+        db_session.add(ref_oubliee)
+        db_session.commit()
+
+        self._importer_commande(client, headers, mode_ciblee=True, code="AUTRE_CODE")
+
+        liste = client.get("/api/v1/dashboard/liste-action", headers=headers).json()
+        assert "OUB1" in [l["code"] for l in liste]

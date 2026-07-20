@@ -52,7 +52,7 @@ export default function DecisionsCommande() {
       {!chargement && (
         <>
           {/* ── Section 7.0 : références stratégiques manquées ──────────── */}
-          <AlerteStrategique onCommande={charger} />
+          <AlerteStrategique />
 
           {/* ── À commander en priorité ─────────────────────────────────── */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 p-6">
