@@ -35,6 +35,31 @@ const ROTATION_CFG = {
 
 const VED_OPTIONS = ['Vital', 'Essentiel', 'Désirable']
 
+// ── Liste déroulante de filtre, intégrée directement dans l'en-tête de
+// colonne (comme les filtres de colonne d'un tableur, terrain connu des
+// pharmaciens qui utilisaient Excel) ────────────────────────────────────────
+function ThFiltre({ label, value, onChange, options, align = 'left' }) {
+  return (
+    <th className={`px-4 py-2.5 ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : ''}`}>
+      <div className={`flex flex-col gap-1 ${align === 'center' ? 'items-center' : align === 'right' ? 'items-end' : 'items-start'}`}>
+        <span>{label}</span>
+        <div className="relative">
+          <select
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className="normal-case text-[11px] font-medium rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 pl-2 pr-5 py-1 appearance-none cursor-pointer focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30"
+          >
+            {options.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <svg viewBox="0 0 16 16" fill="none" className="w-2.5 h-2.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+      </div>
+    </th>
+  )
+}
+
 // ── Cellule VED éditable ──────────────────────────────────────────────────────
 
 function VedCell({ ligne, onChange, saving }) {
@@ -177,6 +202,8 @@ export default function Stock() {
   const [recherche, setRecherche] = useState('')
   const [filtreStatut, setFiltreStatut] = useState('TOUS')
   const [filtreClasse, setFiltreClasse] = useState('TOUS')
+  const [filtreRotation, setFiltreRotation] = useState('TOUS')
+  const [filtrePriorite, setFiltrePriorite] = useState('TOUS')
   // savingId → 'ved' | 'risque' | null
   const [saving, setSaving] = useState({})
 
@@ -225,11 +252,18 @@ export default function Stock() {
   const refsFiltrees = refs.filter(r => {
     if (filtreStatut !== 'TOUS' && r.statut !== filtreStatut) return false
     if (filtreClasse !== 'TOUS' && r.classe !== filtreClasse) return false
+    if (filtreRotation !== 'TOUS' && r.fsn !== filtreRotation) return false
+    if (filtrePriorite !== 'TOUS' && (r.ved || 'NON_RENSEIGNE') !== filtrePriorite) return false
     if (query && !r.code?.toLowerCase().includes(query) && !r.designation?.toLowerCase().includes(query)) return false
     return true
   })
 
   const nbParStatut = s => refs.filter(r => r.statut === s).length
+  const nbParClasse = c => refs.filter(r => r.classe === c).length
+  const nbParRotation = f => refs.filter(r => r.fsn === f).length
+  const nbParPriorite = v => refs.filter(r => (r.ved || 'NON_RENSEIGNE') === v).length
+
+  const filtreActif = filtreStatut !== 'TOUS' || filtreClasse !== 'TOUS' || filtreRotation !== 'TOUS' || filtrePriorite !== 'TOUS' || recherche
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-7xl mx-auto space-y-5">
@@ -240,60 +274,18 @@ export default function Stock() {
         subtitle={chargement ? 'Chargement…' : `${refs.length} référence${refs.length > 1 ? 's' : ''} — ${refsFiltrees.length} affichée${refsFiltrees.length > 1 ? 's' : ''}`}
       />
 
-      {/* Barre de filtres */}
-      <div className="flex flex-wrap gap-3 items-center">
-        {/* Recherche */}
-        <div className="relative">
-          <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            <path d="M17.5 17.5l-4.167-4.167M14.167 8.333a5.833 5.833 0 1 1-11.667 0 5.833 5.833 0 0 1 11.667 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          <input
-            type="text"
-            value={recherche}
-            onChange={e => setRecherche(e.target.value)}
-            placeholder="Rechercher code ou désignation…"
-            className="pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 w-72"
-          />
-        </div>
-
-        {/* Filtre statut */}
-        <div className="flex gap-1.5 flex-wrap">
-          {['TOUS', 'RUPTURE', 'CRITIQUE', 'COMMANDER', 'OK'].map(s => {
-            const cfg = STATUT_CFG[s]
-            const actif = filtreStatut === s
-            return (
-              <button
-                key={s}
-                onClick={() => setFiltreStatut(s)}
-                className={`tg-tap text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
-                  actif
-                    ? s === 'TOUS' ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent' : `${cfg.badge} border-transparent`
-                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-300'
-                }`}
-              >
-                {s === 'TOUS' ? 'Tous' : cfg.label}
-                {s !== 'TOUS' && <span className="ml-1 opacity-70">{nbParStatut(s)}</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Filtre classe */}
-        <div className="flex gap-1.5">
-          {['TOUS', 'A', 'B', 'C'].map(c => (
-            <button
-              key={c}
-              onClick={() => setFiltreClasse(c)}
-              className={`tg-tap text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-all ${
-                filtreClasse === c
-                  ? c === 'TOUS' ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent' : `${CLASSE_CFG[c]} border-transparent`
-                  : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-300'
-              }`}
-            >
-              {c === 'TOUS' ? 'Cl. tous' : `Classe ${c}`}
-            </button>
-          ))}
-        </div>
+      {/* Recherche — les filtres par colonne sont directement dans l'en-tête du tableau */}
+      <div className="relative w-72">
+        <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <path d="M17.5 17.5l-4.167-4.167M14.167 8.333a5.833 5.833 0 1 1-11.667 0 5.833 5.833 0 0 1 11.667 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        <input
+          type="text"
+          value={recherche}
+          onChange={e => setRecherche(e.target.value)}
+          placeholder="Rechercher code ou désignation…"
+          className="pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 w-full"
+        />
       </div>
 
       {chargement && (
@@ -313,12 +305,56 @@ export default function Stock() {
             <table className="w-full text-sm" style={{ minWidth: '1020px' }}>
               <thead>
                 <tr className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-700/30">
-                  <th className="px-4 py-3">Statut</th>
+                  <ThFiltre
+                    label="Statut"
+                    value={filtreStatut}
+                    onChange={setFiltreStatut}
+                    options={[
+                      { value: 'TOUS', label: `Tous (${refs.length})` },
+                      { value: 'RUPTURE', label: `${STATUT_CFG.RUPTURE.label} (${nbParStatut('RUPTURE')})` },
+                      { value: 'CRITIQUE', label: `${STATUT_CFG.CRITIQUE.label} (${nbParStatut('CRITIQUE')})` },
+                      { value: 'COMMANDER', label: `${STATUT_CFG.COMMANDER.label} (${nbParStatut('COMMANDER')})` },
+                      { value: 'OK', label: `${STATUT_CFG.OK.label} (${nbParStatut('OK')})` },
+                    ]}
+                  />
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3">Désignation</th>
-                  <th className="px-4 py-3 text-center">Cl.</th>
-                  <th className="px-4 py-3 text-center">Rotation</th>
-                  <th className="px-4 py-3">Priorité</th>
+                  <ThFiltre
+                    label="Cl."
+                    align="center"
+                    value={filtreClasse}
+                    onChange={setFiltreClasse}
+                    options={[
+                      { value: 'TOUS', label: 'Toutes' },
+                      { value: 'A', label: `A (${nbParClasse('A')})` },
+                      { value: 'B', label: `B (${nbParClasse('B')})` },
+                      { value: 'C', label: `C (${nbParClasse('C')})` },
+                    ]}
+                  />
+                  <ThFiltre
+                    label="Rotation"
+                    align="center"
+                    value={filtreRotation}
+                    onChange={setFiltreRotation}
+                    options={[
+                      { value: 'TOUS', label: 'Toutes' },
+                      { value: 'Fast', label: `${ROTATION_CFG.Fast.label} (${nbParRotation('Fast')})` },
+                      { value: 'Slow', label: `${ROTATION_CFG.Slow.label} (${nbParRotation('Slow')})` },
+                      { value: 'Non-moving', label: `${ROTATION_CFG['Non-moving'].label} (${nbParRotation('Non-moving')})` },
+                    ]}
+                  />
+                  <ThFiltre
+                    label="Priorité"
+                    value={filtrePriorite}
+                    onChange={setFiltrePriorite}
+                    options={[
+                      { value: 'TOUS', label: 'Toutes' },
+                      { value: 'Vital', label: `Vital (${nbParPriorite('Vital')})` },
+                      { value: 'Essentiel', label: `Essentiel (${nbParPriorite('Essentiel')})` },
+                      { value: 'Désirable', label: `Désirable (${nbParPriorite('Désirable')})` },
+                      { value: 'NON_RENSEIGNE', label: `Non renseigné (${nbParPriorite('NON_RENSEIGNE')})` },
+                    ]}
+                  />
                   <th className="px-4 py-3 text-right">Stock</th>
                   <th className="px-4 py-3 text-right">Ventes/mois</th>
                   <th className="px-4 py-3 text-right">Seuil critique</th>
@@ -442,9 +478,7 @@ export default function Stock() {
           {refsFiltrees.length > 0 && (
             <div className="px-6 py-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/20 text-xs text-slate-400 dark:text-slate-500">
               {refsFiltrees.length} référence{refsFiltrees.length > 1 ? 's' : ''} affichée{refsFiltrees.length > 1 ? 's' : ''}
-              {filtreStatut !== 'TOUS' || filtreClasse !== 'TOUS' || recherche
-                ? ` sur ${refs.length} au total`
-                : ''}
+              {filtreActif ? ` sur ${refs.length} au total` : ''}
               {' · '}Priorité modifiable uniquement pour les classes A et B
               {' · '}Cliquer sur le risque fournisseur pour modifier
             </div>
