@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from app.models.reference import Reference
+from app.services.rupture_fournisseur import doit_etre_masquee
 
 STATUTS_ACTIONNABLES = ("RUPTURE", "CRITIQUE", "COMMANDER")
 
@@ -93,6 +94,10 @@ def prioriser_et_plafonner(references: list[Reference], plafond: Optional[float]
         r for r in references
         if r.inclusion_manuelle == "inclure" or (r.statut in STATUTS_ACTIONNABLES and r.inclusion_manuelle != "exclure")
     ]
+
+    # Section 6.8 : une référence en attente fournisseur ne doit pas entrer
+    # dans le tri par priorité (sauf RUPTURE + Vital ou inclusion manuelle).
+    actionnables = [r for r in actionnables if not doit_etre_masquee(r)]
 
     # Une inclusion manuelle ("inclure") est une garantie explicite du
     # pharmacien : elle doit vraiment passer hors plafond, pas seulement

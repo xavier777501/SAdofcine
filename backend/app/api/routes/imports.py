@@ -299,7 +299,9 @@ async def import_commande_logpharma(
             continue
 
         sorties = max(0.0, ligne.get("sorties_periode") or 0.0)
-        ref.stock_actuel = ligne["stock_actuel"]
+        # Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve — une
+        # partie du stock peut être gardée hors rayon (trésorerie/organisation).
+        ref.stock_actuel = ligne["stock_actuel"] + (ligne.get("reserve") or 0.0)
         ref.sorties_derniere_commande = sorties
         ref.dans_dernier_import_commande = True
         sorties_totales += sorties
@@ -419,7 +421,9 @@ async def import_historique_logpharma(
 
         # Cet import représente toujours le mois le plus récent : le stock
         # actuel est mis à jour à chaque fois.
-        ref.stock_actuel = ligne["stock_actuel"]
+        # Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve — une
+        # partie du stock peut être gardée hors rayon (trésorerie/organisation).
+        ref.stock_actuel = ligne["stock_actuel"] + (ligne.get("reserve") or 0.0)
 
         db.flush()  # pour avoir ref.id
 
@@ -541,7 +545,9 @@ async def import_historique_logpharma_annuel(
         if ligne.get("circuit"):
             ref.circuit = ligne["circuit"]
 
-        ref.stock_actuel = ligne["stock_actuel"]
+        # Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve — une
+        # partie du stock peut être gardée hors rayon (trésorerie/organisation).
+        ref.stock_actuel = ligne["stock_actuel"] + (ligne.get("reserve") or 0.0)
 
         # Sorties négatives (corrections d'inventaire) exclues, section 6.1.
         total_periode = max(0.0, ligne.get("sorties_periode") or 0.0)

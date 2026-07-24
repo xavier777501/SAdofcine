@@ -35,6 +35,16 @@ export async function inclureToutAlertesStrategiques() {
   return data
 }
 
+export async function getEnAttenteFournisseur() {
+  const { data } = await api.get('/dashboard/en-attente-fournisseur')
+  return data
+}
+
+export async function getHistoriqueCommandes() {
+  const { data } = await api.get('/dashboard/historique-commandes')
+  return data
+}
+
 export async function exportListe(format, statut) {
   const { data } = await api.get('/dashboard/export', {
     params: statut && statut !== 'TOUS' ? { format, statut } : { format },

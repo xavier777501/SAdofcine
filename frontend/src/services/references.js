@@ -14,3 +14,8 @@ export const updateAjustementCommande = (id, { qteOverride, inclusionManuelle } 
     qte_a_commander_override: qteOverride ?? null,
     inclusion_manuelle: inclusionManuelle ?? null,
   }).then(r => r.data)
+
+export const updateFournisseurIndisponible = (id, dateReevaluation) =>
+  api.patch(`/references/${id}/fournisseur-indisponible`, {
+    date_reevaluation: dateReevaluation ?? null,
+  }).then(r => r.data)

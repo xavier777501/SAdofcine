@@ -110,18 +110,20 @@ def reference_deja_calculee(db_session, officine):
 
 
 def _fichier_logpharma(code="A001", designation="Doliprane 500mg", stock=180, sorties=90,
-                       prix_cession=550, prix_public=900):
+                       prix_cession=550, prix_public=900, reserve=None):
     """
     Reproduit le format fixe 'Listing de Produit à Commander' décrit au CDC V3
     section 4bis : ligne 1 = nom pharmacie, ligne 2 = titre/date, ligne 3 = en-têtes,
     puis les données, puis 3 lignes de totaux/pagination à ignorer.
+    Colonne "Réserve" (section 4bis, V9) : optionnelle — `reserve=None` reproduit
+    un ancien export sans cette colonne, pour vérifier la non-régression.
     """
     lignes_brutes = [
         ["Pharmacie Fictive", None, None, None, None, None, None, None, None, None, None, None],
         ["Listing de Produit à Commander - 09/07/2026", None, None, None, None, None, None, None, None, None, None, None],
-        ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "E", "Sorties", "G", "H",
+        ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "Réserve", "Sorties", "G", "H",
          "Prix Ces.", "Prix Public", "K", "FOURNISSEUR"],
-        [code, 999, designation, stock, None, sorties, None, None, prix_cession, prix_public, None, "Local"],
+        [code, 999, designation, stock, reserve, sorties, None, None, prix_cession, prix_public, None, "Local"],
         ["TOTAL", None, None, None, None, None, None, None, None, None, None, None],
         ["", None, None, None, None, None, None, None, None, None, None, None],
         ["Page 1/1", None, None, None, None, None, None, None, None, None, None, None],
@@ -212,6 +214,51 @@ class TestImportCommandeLogpharma:
         body = response.json()
         assert body["nb_lignes_ok"] == 0
         assert body["nb_lignes_erreur"] == 1
+
+
+class TestStockActuelAvecReserve:
+    """Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve."""
+
+    def test_stock_actuel_inclut_la_reserve(self, client, token, db_session, reference_deja_calculee):
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.post(
+            "/api/v1/imports/commande",
+            files={"file": ("logpharma.xlsx", _fichier_logpharma(stock=180, reserve=20, sorties=90), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            headers=headers,
+        )
+        assert response.status_code == 200
+
+        db_session.refresh(reference_deja_calculee)
+        assert reference_deja_calculee.stock_actuel == 200.0  # 180 (Qté Sal.) + 20 (Réserve)
+
+    def test_fichier_sans_colonne_reserve_ne_plante_pas(self, client, token, db_session, reference_deja_calculee):
+        """Non-régression : un ancien export sans colonne Réserve doit continuer
+        à fonctionner normalement, avec un stock inchangé (repli sur 0)."""
+        headers = {"Authorization": f"Bearer {token}"}
+        lignes_brutes = [
+            ["Pharmacie Fictive", None, None, None, None, None, None, None, None, None, None],
+            ["Listing de Produit à Commander - 09/07/2026", None, None, None, None, None, None, None, None, None, None],
+            ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "Sorties", "G", "H",
+             "Prix Ces.", "Prix Public", "K", "FOURNISSEUR"],
+            ["A001", 999, "Doliprane 500mg", 180, 90, None, None, 550, 900, None, "Local"],
+            ["TOTAL", None, None, None, None, None, None, None, None, None, None],
+            ["", None, None, None, None, None, None, None, None, None, None],
+            ["Page 1/1", None, None, None, None, None, None, None, None, None, None],
+        ]
+        buf = io.BytesIO()
+        pd.DataFrame(lignes_brutes).to_excel(buf, index=False, header=False)
+        buf.seek(0)
+
+        response = client.post(
+            "/api/v1/imports/commande",
+            files={"file": ("logpharma.xlsx", buf, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["nb_lignes_erreur"] == 0
+
+        db_session.refresh(reference_deja_calculee)
+        assert reference_deja_calculee.stock_actuel == 180.0
 
 
 class TestModeCommandeCiblee:

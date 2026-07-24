@@ -16,6 +16,7 @@ const SECTIONS = [
       "Seuls les produits qui ont besoin d'une action apparaissent ici — jamais ceux qui sont dans une situation normale.",
       "Classée du plus urgent (rupture) au moins urgent (à commander bientôt), avec pour chaque produit la quantité exacte à commander et sa valeur en FCFA. Vous pouvez filtrer par statut ou par classe (A, B, C) pour vous concentrer sur ce qui compte le plus.",
       "Si vous avez fixé un plafond de budget dans les Réglages, la liste se sépare en deux : ce qui rentre dans le budget, et ce qui est reporté à la prochaine commande faute d'argent disponible (repéré par le bandeau \"HORS PLAFOND\" ou la mention \"reportée\"). Vous pouvez toujours forcer l'inclusion d'un produit reporté si vous jugez que c'est nécessaire — vous gardez la main.",
+      "Si votre grossiste n'a pas non plus un produit en stock, cliquez sur \"Indisponible chez le fournisseur\" et indiquez une date de réévaluation : le produit est mis de côté dans une section \"En attente fournisseur\" en bas de page jusqu'à cette date, pour ne pas vous alerter inutilement sur quelque chose que vous ne pouvez pas commander pour l'instant. Vous pouvez le réactiver à tout moment.",
       "Vous pouvez l'exporter en PDF ou en Excel pour l'emmener ou l'envoyer au moment de passer votre commande.",
     ],
   },
@@ -34,6 +35,7 @@ const SECTIONS = [
     texte: [
       "Contrairement à la liste d'action, ici tous les produits apparaissent — même ceux dont le stock est normal — pour que vous puissiez vérifier n'importe quelle référence.",
       "Vous pouvez rechercher un produit par son nom ou son code, et filtrer par statut (rupture, critique, à commander, ou normal).",
+      "Un second onglet « Historique des commandes » garde une trace de chaque export PDF ou Excel que vous avez fait : la date, qui l'a fait, et si une quantité a été modifiée à la main par rapport à ce que StockAid recommandait.",
     ],
   },
   {
@@ -61,6 +63,7 @@ const SECTIONS = [
       "Le rythme auquel vous préférez passer vos commandes (tous les jours, tous les 10 jours, ou une fois par mois).",
       "Le niveau de service que vous souhaitez pour chaque catégorie de produit — plus il est élevé, moins vous risquez la rupture, mais plus vous immobilisez de stock.",
       "Un plafond de budget (en FCFA) pour vos commandes, si vous voulez limiter ce que vous dépensez à chaque fois — laissez-le vide pour ne rien limiter.",
+      "Une notification quotidienne par e-mail, si vous voulez être relancé sur vos références stratégiques manquées sans avoir à ouvrir StockAid vous-même.",
     ],
   },
 ]

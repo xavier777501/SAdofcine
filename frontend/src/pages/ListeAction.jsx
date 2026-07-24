@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getListeAction, exportListe, getCommandePlafonnee } from '../services/dashboard'
-import { updateAjustementCommande } from '../services/references'
+import { getListeAction, exportListe, getCommandePlafonnee, getEnAttenteFournisseur } from '../services/dashboard'
+import { updateAjustementCommande, updateFournisseurIndisponible } from '../services/references'
 import PageHeader from '../components/PageHeader'
 
 function formatFCFA(val) {
@@ -29,7 +29,58 @@ const CLASSE_CFG = {
 // Section 6.7 : "le pharmacien garde toujours la main" — quantité modifiable
 // et inclusion/exclusion forcée, disponibles dans le panneau déplié de chaque
 // référence, aussi bien dans la liste simple que dans la vue plafonnée.
-function ArbitrageManuel({ ligne, onAjuster, saving, reportee = false }) {
+function joursDefaut() {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
+
+// Section 6.8 : le fournisseur habituel n'a pas non plus la référence en
+// stock — le pharmacien la met en attente jusqu'à une date de réévaluation.
+function IndisponibleFournisseur({ onConfirmer, saving }) {
+  const [ouvert, setOuvert] = useState(false)
+  const [date, setDate] = useState(joursDefaut())
+
+  if (!ouvert) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setOuvert(true) }}
+        disabled={saving}
+        className="tg-tap rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:border-orange-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors disabled:opacity-50"
+      >
+        Indisponible chez le fournisseur
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <label className="text-xs text-slate-500 dark:text-slate-400">Jusqu'au :</label>
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        className="text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand"
+      />
+      <button
+        onClick={(e) => { e.stopPropagation(); onConfirmer(date); setOuvert(false) }}
+        disabled={saving || !date}
+        className="tg-tap rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+      >
+        Confirmer
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOuvert(false) }}
+        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+      >
+        Annuler
+      </button>
+    </div>
+  )
+}
+
+function ArbitrageManuel({ ligne, onAjuster, onMiseEnAttente, saving, reportee = false }) {
   const [qteDraft, setQteDraft] = useState(String(ligne.qte_a_commander ?? 0))
   const qteModifiee = qteDraft !== '' && Number(qteDraft) !== (ligne.qte_a_commander ?? 0)
 
@@ -109,11 +160,14 @@ function ArbitrageManuel({ ligne, onAjuster, saving, reportee = false }) {
       >
         {inclusionBouton.label}
       </button>
+      {onMiseEnAttente && (
+        <IndisponibleFournisseur onConfirmer={onMiseEnAttente} saving={saving} />
+      )}
     </div>
   )
 }
 
-function LigneAction({ ligne, expanded, onToggle, onAjuster, saving }) {
+function LigneAction({ ligne, expanded, onToggle, onAjuster, onMiseEnAttente, saving }) {
   const cfg = STATUT_CFG[ligne.statut] || {}
   const classeCfg = CLASSE_CFG[ligne.classe] || CLASSE_CFG.C
 
@@ -168,7 +222,7 @@ function LigneAction({ ligne, expanded, onToggle, onAjuster, saving }) {
                 {formatNb(ligne.sorties_derniere_commande)} unité{ligne.sorties_derniere_commande > 1 ? 's' : ''} vendue{ligne.sorties_derniere_commande > 1 ? 's' : ''} depuis la dernière commande
               </p>
             )}
-            <ArbitrageManuel ligne={ligne} onAjuster={onAjuster} saving={saving} />
+            <ArbitrageManuel ligne={ligne} onAjuster={onAjuster} onMiseEnAttente={onMiseEnAttente} saving={saving} />
           </td>
         </tr>
       )}
@@ -176,7 +230,7 @@ function LigneAction({ ligne, expanded, onToggle, onAjuster, saving }) {
   )
 }
 
-function LignePlafond({ ligne, reportee, expanded, onToggle, onAjuster, saving }) {
+function LignePlafond({ ligne, reportee, expanded, onToggle, onAjuster, onMiseEnAttente, saving }) {
   const cfg = STATUT_CFG[ligne.statut] || {}
   const classeCfg = CLASSE_CFG[ligne.classe] || CLASSE_CFG.C
 
@@ -235,7 +289,7 @@ function LignePlafond({ ligne, reportee, expanded, onToggle, onAjuster, saving }
                 Reportée à la prochaine commande faute de budget disponible — vous pouvez l'inclure quand même, hors plafond.
               </p>
             )}
-            <ArbitrageManuel ligne={ligne} onAjuster={onAjuster} saving={saving} reportee={reportee} />
+            <ArbitrageManuel ligne={ligne} onAjuster={onAjuster} onMiseEnAttente={onMiseEnAttente} saving={saving} reportee={reportee} />
           </td>
         </tr>
       )}
@@ -274,6 +328,7 @@ function FiltreClasse({ valeur, onChange, options }) {
 export default function ListeAction() {
   const [liste, setListe] = useState([])
   const [plafond, setPlafond] = useState(null)
+  const [enAttente, setEnAttente] = useState([])
   const [chargement, setChargement] = useState(true)
   const [exportEnCours, setExportEnCours] = useState(null)
   const [ligneOuverte, setLigneOuverte] = useState(null)
@@ -284,12 +339,14 @@ export default function ListeAction() {
   const charger = useCallback(async (avecSpinner = true) => {
     if (avecSpinner) setChargement(true)
     try {
-      const [liste, plafond] = await Promise.all([
+      const [liste, plafond, enAttente] = await Promise.all([
         getListeAction(),
         getCommandePlafonnee().catch(() => null),
+        getEnAttenteFournisseur().catch(() => []),
       ])
       setListe(liste)
       setPlafond(plafond)
+      setEnAttente(enAttente)
     } catch {
       if (avecSpinner) setListe([])
     } finally {
@@ -310,6 +367,18 @@ export default function ListeAction() {
     setAjustementEnCours(id)
     try {
       await updateAjustementCommande(id, { qteOverride, inclusionManuelle })
+      await charger(false)
+    } catch {
+      /* silencieux */
+    } finally {
+      setAjustementEnCours(null)
+    }
+  }
+
+  async function handleMiseEnAttente(id, dateReevaluation) {
+    setAjustementEnCours(id)
+    try {
+      await updateFournisseurIndisponible(id, dateReevaluation)
       await charger(false)
     } catch {
       /* silencieux */
@@ -425,6 +494,7 @@ export default function ListeAction() {
                     expanded={ligneOuverte === ligne.id}
                     onToggle={() => setLigneOuverte((prev) => (prev === ligne.id ? null : ligne.id))}
                     onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                    onMiseEnAttente={(date) => handleMiseEnAttente(ligne.id, date)}
                     saving={ajustementEnCours === ligne.id}
                   />
                 ))}
@@ -435,6 +505,7 @@ export default function ListeAction() {
                     expanded={ligneOuverte === ligne.id}
                     onToggle={() => setLigneOuverte((prev) => (prev === ligne.id ? null : ligne.id))}
                     onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                    onMiseEnAttente={(date) => handleMiseEnAttente(ligne.id, date)}
                     saving={ajustementEnCours === ligne.id}
                   />
                 ))}
@@ -453,6 +524,7 @@ export default function ListeAction() {
                     expanded={ligneOuverte === ligne.id}
                     onToggle={() => setLigneOuverte((prev) => (prev === ligne.id ? null : ligne.id))}
                     onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                    onMiseEnAttente={(date) => handleMiseEnAttente(ligne.id, date)}
                     saving={ajustementEnCours === ligne.id}
                   />
                 ))}
@@ -553,12 +625,54 @@ export default function ListeAction() {
                       expanded={ligneOuverte === ligne.id}
                       onToggle={() => setLigneOuverte(prev => prev === ligne.id ? null : ligne.id)}
                       onAjuster={(patch) => handleAjuster(ligne.id, patch)}
+                      onMiseEnAttente={(date) => handleMiseEnAttente(ligne.id, date)}
                       saving={ajustementEnCours === ligne.id}
                     />
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {!chargement && enAttente.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              En attente fournisseur
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+              Le fournisseur habituel n'a pas non plus ces références en stock pour l'instant — masquées de la liste principale jusqu'à la date indiquée.
+            </p>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+            {enAttente.map((ligne) => {
+              const statCfg = STATUT_CFG[ligne.statut] || {}
+              return (
+                <div key={ligne.id} className="flex items-center gap-3 px-6 py-3">
+                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${statCfg.badge}`}>
+                    {statCfg.label}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-800 dark:text-slate-200 truncate">{ligne.designation}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      En attente jusqu'au {new Date(ligne.fournisseur_indisponible_jusqu_au).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
+                    {formatFCFA(ligne.valeur_fcfa)}
+                  </p>
+                  <button
+                    onClick={() => handleMiseEnAttente(ligne.id, null)}
+                    disabled={ajustementEnCours === ligne.id}
+                    className="tg-tap shrink-0 rounded-lg border border-brand px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand-light dark:hover:bg-brand/10 transition-colors disabled:opacity-50"
+                  >
+                    Réactiver maintenant
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

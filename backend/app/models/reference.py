@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Uuid
+from sqlalchemy import Column, String, Float, Integer, Boolean, Date, ForeignKey, Uuid
 from app.models.base import BaseModel
 
 
@@ -50,3 +50,9 @@ class Reference(BaseModel):
     # utilisé pour restreindre la liste d'action/le plafond quand le mode de
     # commande "ciblée sur l'import" est actif sur l'officine.
     dans_dernier_import_commande = Column(Boolean, nullable=False, default=False)
+
+    # Section 6.8 (V9) : le fournisseur habituel n'a pas la référence en
+    # stock — mise en attente temporaire jusqu'à cette date. None = pas en
+    # attente ; une date passée redevient inactive par simple comparaison
+    # (pas de job de nettoyage nécessaire).
+    fournisseur_indisponible_jusqu_au = Column(Date, nullable=True)

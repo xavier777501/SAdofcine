@@ -76,14 +76,14 @@ def token(client, user):
 
 
 def _fichier_logpharma(code="A001", designation="Doliprane 500mg", stock=50, sorties=1200,
-                       prix_cession=550, prix_public=900):
+                       prix_cession=550, prix_public=900, reserve=None):
     """Même format fixe 'Listing de Produit à Commander' que les autres imports Logpharma."""
     lignes_brutes = [
         ["Pharmacie Fictive", None, None, None, None, None, None, None, None, None, None, None],
         ["Listing de Produit à Commander - 09/07/2026", None, None, None, None, None, None, None, None, None, None, None],
-        ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "E", "Sorties", "G", "H",
+        ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "Réserve", "Sorties", "G", "H",
          "Prix Ces.", "Prix Public", "K", "FOURNISSEUR"],
-        [code, 999, designation, stock, None, sorties, None, None, prix_cession, prix_public, None, "Local"],
+        [code, 999, designation, stock, reserve, sorties, None, None, prix_cession, prix_public, None, "Local"],
         ["TOTAL", None, None, None, None, None, None, None, None, None, None, None],
         ["", None, None, None, None, None, None, None, None, None, None, None],
         ["Page 1/1", None, None, None, None, None, None, None, None, None, None, None],
@@ -128,6 +128,17 @@ class TestImportHistoriqueAnnuel:
         # Aucune ligne de vente mensuelle créée par cet import (pas de détail mensuel réel)
         ventes = db_session.query(VenteMensuelle).filter(VenteMensuelle.reference_id == ref.id).all()
         assert len(ventes) == 0
+
+    def test_stock_actuel_inclut_la_reserve(self, client, token, db_session):
+        """Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve."""
+        headers = {"Authorization": f"Bearer {token}"}
+        client.post(
+            "/api/v1/imports/historique-logpharma-annuel",
+            files={"file": ("annuel.xlsx", _fichier_logpharma(stock=50, reserve=8, sorties=1200), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            headers=headers,
+        )
+        ref = db_session.query(Reference).filter(Reference.code == "A001").first()
+        assert ref.stock_actuel == 58.0  # 50 (Qté Sal.) + 8 (Réserve)
 
     def test_sorties_negatives_donnent_cmm_zero(self, client, token, db_session):
         headers = {"Authorization": f"Bearer {token}"}

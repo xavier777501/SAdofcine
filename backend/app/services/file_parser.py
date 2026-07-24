@@ -130,11 +130,17 @@ _COLONNES_LOGPHARMA = {
     "code":            "CODEPROD",
     "designation":     "DÉSIGNATION",
     "stock_actuel":    "QTÉSAL.",
+    "reserve":         "RÉSERVE",
     "sorties_periode": "SORTIES",
     "prix_cession":    "PRIXCES.",
     "prix_public":     "PRIXPUBLIC",
     "circuit":         "FOURNISEUR",  # orthographe réelle de Logpharma (une seule S)
 }
+
+# Colonnes qui, si absentes du fichier (anciens exports, ou colonne "Réserve"
+# non activée côté officine), ne doivent jamais faire échouer l'import — au
+# contraire de code/désignation/stock_actuel qui restent obligatoires.
+_COLONNES_OPTIONNELLES = {"reserve"}
 
 
 def parse_commande_logpharma(content: bytes) -> list[dict]:
@@ -142,7 +148,10 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
     Parse un export Logpharma "Listing de Produit à Commander".
     Format fixe (3 lignes d'en-tête, 3 dernières lignes = totaux) :
       Ligne 1 : nom officine, Ligne 2 : titre, Ligne 3 : en-têtes
-    Retourne une liste de dicts {code, designation, stock_actuel, sorties_periode, prix_cession, prix_public, circuit}.
+    Retourne une liste de dicts {code, designation, stock_actuel, reserve,
+    sorties_periode, prix_cession, prix_public, circuit}. `stock_actuel` est
+    ici uniquement la colonne "Qté Sal." — c'est à l'appelant d'ajouter
+    `reserve` pour obtenir le stock actuel total (section 4bis, V9).
     """
     try:
         df = pd.read_excel(io.BytesIO(content), header=2, dtype=str)
@@ -201,10 +210,18 @@ def parse_commande_logpharma(content: bytes) -> list[dict]:
         if stock is None or stock < 0:
             stock = 0.0
 
+        # Section 4bis (V9) : certaines officines gardent une partie du stock
+        # en réserve, hors rayon — l'ignorer ferait recommander un produit
+        # déjà disponible. Colonne optionnelle : absente => 0, jamais d'erreur.
+        reserve = _to_float(_valeur(row, "reserve")) or 0.0
+        if reserve < 0:
+            reserve = 0.0
+
         lignes.append({
             "code": code,
             "designation": str(_valeur(row, "designation") or "").strip() or None,
             "stock_actuel": stock,
+            "reserve": reserve,
             "sorties_periode": _to_float(_valeur(row, "sorties_periode")) or 0.0,
             "prix_cession": _to_float(_valeur(row, "prix_cession")),
             "prix_public":  _to_float(_valeur(row, "prix_public")),

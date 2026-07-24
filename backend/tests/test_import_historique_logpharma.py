@@ -77,14 +77,14 @@ def token(client, user):
 
 
 def _fichier_logpharma(code="A001", designation="Doliprane 500mg", stock=50, sorties=100,
-                       prix_cession=550, prix_public=900):
+                       prix_cession=550, prix_public=900, reserve=None):
     """Même format fixe 'Listing de Produit à Commander' que le Type 2 (section 4bis)."""
     lignes_brutes = [
         ["Pharmacie Fictive", None, None, None, None, None, None, None, None, None, None, None],
         ["Listing de Produit à Commander - 09/07/2026", None, None, None, None, None, None, None, None, None, None, None],
-        ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "E", "Sorties", "G", "H",
+        ["Code Prod", "A Commander", "Désignation", "Qté Sal.", "Réserve", "Sorties", "G", "H",
          "Prix Ces.", "Prix Public", "K", "FOURNISSEUR"],
-        [code, 999, designation, stock, None, sorties, None, None, prix_cession, prix_public, None, "Local"],
+        [code, 999, designation, stock, reserve, sorties, None, None, prix_cession, prix_public, None, "Local"],
         ["TOTAL", None, None, None, None, None, None, None, None, None, None, None],
         ["", None, None, None, None, None, None, None, None, None, None, None],
         ["Page 1/1", None, None, None, None, None, None, None, None, None, None, None],
@@ -173,6 +173,13 @@ class TestImportHistoriqueLogpharmaGlissant:
         assert response.status_code == 200
         body = response.json()
         assert body["nb_lignes_erreur"] == 1
+
+    def test_stock_actuel_inclut_la_reserve(self, client, token, db_session):
+        """Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve."""
+        headers = {"Authorization": f"Bearer {token}"}
+        _importer(client, headers, stock=50, reserve=15, sorties=100)
+        ref = db_session.query(Reference).filter(Reference.code == "A001").first()
+        assert ref.stock_actuel == 65.0  # 50 (Qté Sal.) + 15 (Réserve)
 
 
 class TestListeDemarrageVed:

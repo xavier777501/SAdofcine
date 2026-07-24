@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
@@ -26,6 +27,7 @@ class ReferenceOut(BaseModel):
     risque_fournisseur_jours: int
     couverture_jours: Optional[float]
     tresorerie_liberee: Optional[float]
+    fournisseur_indisponible_jusqu_au: Optional[date]
 
     model_config = {"from_attributes": True}
 
@@ -56,3 +58,9 @@ class VedUpdate(BaseModel):
 
 class RisqueFournisseurUpdate(BaseModel):
     risque_fournisseur_jours: int = Field(ge=0)
+
+
+class FournisseurIndisponibleUpdate(BaseModel):
+    """Section 6.8 : mise en attente fournisseur jusqu'à une date de
+    réévaluation. `date_reevaluation=None` réactive immédiatement la référence."""
+    date_reevaluation: Optional[date] = None

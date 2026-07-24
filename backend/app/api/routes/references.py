@@ -6,7 +6,10 @@ from app.api.deps import get_current_officine
 from app.core.database import get_db
 from app.models.officine import Officine
 from app.models.reference import Reference
-from app.schemas.references import ReferenceOut, VedUpdate, RisqueFournisseurUpdate, AjustementCommandeUpdate
+from app.schemas.references import (
+    ReferenceOut, VedUpdate, RisqueFournisseurUpdate, AjustementCommandeUpdate,
+    FournisseurIndisponibleUpdate,
+)
 from app.services.calcul_officine import calculer_toutes_references
 
 router = APIRouter(prefix="/references", tags=["Références"])
@@ -102,6 +105,27 @@ def modifier_ajustement_commande(
 
     ref.qte_a_commander_override = data.qte_a_commander_override
     ref.inclusion_manuelle = data.inclusion_manuelle
+    db.commit()
+    db.refresh(ref)
+    return ref
+
+
+@router.patch("/{reference_id}/fournisseur-indisponible", response_model=ReferenceOut)
+def modifier_fournisseur_indisponible(
+    reference_id: str,
+    data: FournisseurIndisponibleUpdate,
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Section 6.8 : le fournisseur habituel n'a pas non plus la référence en
+    stock — le pharmacien la met en attente jusqu'à une date de réévaluation.
+    Aucun recalcul du moteur nécessaire : c'est un arbitrage manuel, comme
+    l'inclusion/exclusion (section 6.7).
+    """
+    ref = _get_reference_ou_404(reference_id, officine, db)
+
+    ref.fournisseur_indisponible_jusqu_au = data.date_reevaluation
     db.commit()
     db.refresh(ref)
     return ref

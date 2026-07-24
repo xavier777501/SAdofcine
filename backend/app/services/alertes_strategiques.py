@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.models.import_log import ImportLog
 from app.models.reference import Reference
+from app.services.rupture_fournisseur import doit_etre_masquee
 
 CLASSES_CONCERNEES = ("A", "B")
 STATUTS_CONCERNES = ("RUPTURE", "CRITIQUE")
@@ -67,6 +68,11 @@ def calculer_alertes_strategiques(officine_id, db: Session) -> dict:
         .all()
     )
 
+    # Section 6.8 : une référence en attente fournisseur ne doit pas
+    # gonfler artificiellement le compte de "produits ratés" — il n'y a rien
+    # que le pharmacien puisse faire dans l'immédiat (sauf RUPTURE + Vital).
+    refs = [r for r in refs if not doit_etre_masquee(r)]
+
     lignes = []
     for r in refs:
         jours = _jours_rupture(r, date_dernier_import)
@@ -93,7 +99,7 @@ def calculer_alertes_strategiques(officine_id, db: Session) -> dict:
 def references_qualifiees_id(officine_id, db: Session) -> list:
     """Les mêmes critères que calculer_alertes_strategiques, mais renvoie les ids bruts."""
     refs = (
-        db.query(Reference.id)
+        db.query(Reference)
         .filter(
             Reference.officine_id == officine_id,
             Reference.classe.in_(CLASSES_CONCERNEES),
@@ -102,4 +108,5 @@ def references_qualifiees_id(officine_id, db: Session) -> list:
         )
         .all()
     )
+    refs = [r for r in refs if not doit_etre_masquee(r)]
     return [r.id for r in refs]

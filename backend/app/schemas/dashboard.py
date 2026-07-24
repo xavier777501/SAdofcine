@@ -104,3 +104,40 @@ class AlertesStrategiquesOut(BaseModel):
     ventes_perdues_totales_fcfa: float
 
     model_config = {"from_attributes": False}
+
+
+class LigneCommandeValideeOut(BaseModel):
+    code: str
+    designation: str
+    qte_recommandee: float
+    qte_validee: float
+
+    model_config = {"from_attributes": False}
+
+
+class CommandeValideeOut(BaseModel):
+    """Section 7.3 : un instantané de commande exportée (PDF/Excel)."""
+    id: str
+    date: str               # ISO 8601
+    utilisateur_email: str
+    format: str
+    nb_references: int
+    nb_ecarts: int           # nombre de références où qte_validee != qte_recommandee
+    lignes: list[LigneCommandeValideeOut]
+
+    model_config = {"from_attributes": False}
+
+
+class LigneEnAttenteOut(BaseModel):
+    """Section 6.8 : référence actuellement mise en attente fournisseur."""
+    id: str
+    code: str
+    designation: str
+    classe: Optional[str]
+    statut: str
+    stock_actuel: float
+    qte_a_commander: float
+    valeur_fcfa: float
+    fournisseur_indisponible_jusqu_au: str  # date ISO (YYYY-MM-DD)
+
+    model_config = {"from_attributes": False}

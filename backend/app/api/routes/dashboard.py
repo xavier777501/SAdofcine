@@ -4,9 +4,13 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 import io
 
-from app.api.deps import get_current_officine
+from datetime import datetime
+from uuid import UUID
+
+from app.api.deps import get_current_officine, get_current_user
 from app.core.database import get_db
 from app.models.officine import Officine
+from app.models.user import User
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
 from app.schemas.dashboard import (
@@ -16,12 +20,17 @@ from app.schemas.dashboard import (
     LigneNePasCommanderOut,
     CommandePlafonneeOut,
     AlertesStrategiquesOut,
+    LigneEnAttenteOut,
+    CommandeValideeOut,
 )
 from app.services.texte_decision import generer_texte
 from app.services.export_dashboard import generer_xlsx, generer_pdf
 from app.services.plafond_commande import prioriser_et_plafonner
 from app.services.calcul_officine import get_or_create_parametres
 from app.services.alertes_strategiques import calculer_alertes_strategiques, references_qualifiees_id
+from app.services.rupture_fournisseur import doit_etre_masquee, en_attente_fournisseur
+from app.services.tracabilite_commandes import enregistrer_commande_validee, lister_commandes_validees
+from app.services.notification_quotidienne import verifier_et_envoyer_notification_quotidienne
 
 router = APIRouter(prefix="/dashboard", tags=["Tableau de pilotage"])
 
@@ -59,6 +68,11 @@ def _lignes_action(officine_id, db: Session, filtrer_dans_import: bool = False) 
     # Section 6.7 : le pharmacien garde toujours la main — une exclusion
     # manuelle retire la référence de la liste, quel que soit son statut.
     refs = [r for r in refs if r.inclusion_manuelle != "exclure"]
+
+    # Section 6.8 (V9) : une référence mise en attente fournisseur est
+    # reléguée hors de la liste principale (sauf RUPTURE + Vital, jamais
+    # masquable) — elle apparaît dans la sous-section dédiée à la place.
+    refs = [r for r in refs if not doit_etre_masquee(r)]
 
     ref_ids = [r.id for r in refs]
     ventes_m1_rows = (
@@ -156,11 +170,22 @@ def get_kpis(
     params = get_or_create_parametres(officine.id, db)
     db.commit()
 
+    # Section 7.2 : envoi opportuniste à l'ouverture du tableau de bord — ne
+    # doit jamais faire échouer l'affichage des KPIs en cas de souci d'envoi.
+    try:
+        verifier_et_envoyer_notification_quotidienne(officine, params, db)
+    except Exception:
+        db.rollback()
+
     refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
 
     # US-D8 : les Non-moving non Vitales sont neutralisées, donc exclues des
     # comptes actionnables — sinon les tuiles ne correspondraient plus à la liste.
     actionnables = [r for r in refs if not (r.fsn == "Non-moving" and r.ved != "Vital")]
+
+    # Section 6.8 : une référence en attente fournisseur ne doit pas compter
+    # dans les tuiles (sauf RUPTURE + Vital) — cohérent avec la liste d'action.
+    actionnables = [r for r in actionnables if not doit_etre_masquee(r)]
 
     # Section 4ter : en mode "commande ciblée", les tuiles de commande (pas le
     # nombre total de références du catalogue) ne portent que sur le périmètre
@@ -208,6 +233,46 @@ def get_liste_action(
     params = get_or_create_parametres(officine.id, db)
     db.commit()
     return _lignes_action(officine.id, db, filtrer_dans_import=params.mode_commande_ciblee)
+
+
+# ── Section 6.8 : références en attente fournisseur ──────────────────────────
+
+@router.get("/en-attente-fournisseur", response_model=list[LigneEnAttenteOut])
+def get_en_attente_fournisseur(
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Références actuellement reléguées hors de la liste principale à cause
+    d'une mise en attente fournisseur (section 6.8) — pour la sous-section
+    dédiée "En attente fournisseur" de la Liste d'action.
+    """
+    refs = (
+        db.query(Reference)
+        .filter(
+            Reference.officine_id == officine.id,
+            Reference.fournisseur_indisponible_jusqu_au.isnot(None),
+        )
+        .all()
+    )
+    refs = [r for r in refs if doit_etre_masquee(r) and en_attente_fournisseur(r)]
+
+    lignes = []
+    for r in refs:
+        qte = r.qte_a_commander_override if r.qte_a_commander_override is not None else (r.qte_a_commander or 0.0)
+        lignes.append({
+            "id": str(r.id),
+            "code": r.code,
+            "designation": r.designation,
+            "classe": r.classe,
+            "statut": r.statut,
+            "stock_actuel": r.stock_actuel or 0.0,
+            "qte_a_commander": qte,
+            "valeur_fcfa": qte * (r.prix_cession or 0.0),
+            "fournisseur_indisponible_jusqu_au": r.fournisseur_indisponible_jusqu_au.isoformat(),
+        })
+    lignes.sort(key=lambda l: -l["valeur_fcfa"])
+    return lignes
 
 
 # ── Ventes du mois dernier (M-1), toutes références confondues ──────────────
@@ -328,6 +393,7 @@ def export_liste_action(
     format: str = Query(..., pattern="^(pdf|xlsx)$"),
     statut: str | None = Query(None, pattern="^(RUPTURE|CRITIQUE|COMMANDER)$"),
     officine: Officine = Depends(get_current_officine),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -345,6 +411,14 @@ def export_liste_action(
     nom = officine.nom
     suffixe = f"_{statut.lower()}" if statut else ""
 
+    # Section 7.3 : chaque export est le moment où le pharmacien consulte la
+    # liste avant de passer sa commande — on l'enregistre comme "commande
+    # validée". Ne doit jamais faire échouer l'export en cas de souci.
+    try:
+        enregistrer_commande_validee(officine.id, current_user.id, format, lignes, db)
+    except Exception:
+        db.rollback()
+
     if format == "xlsx":
         contenu = generer_xlsx(lignes, nom)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -358,4 +432,23 @@ def export_liste_action(
         io.BytesIO(contenu),
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Section 7.3 : historique des commandes validées ──────────────────────────
+
+@router.get("/historique-commandes", response_model=list[CommandeValideeOut])
+def get_historique_commandes(
+    date_debut: datetime | None = Query(None),
+    date_fin: datetime | None = Query(None),
+    user_id: UUID | None = Query(None),
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Historique des commandes validées (chaque export PDF/Excel) : qui, quand,
+    quantité recommandée par StockAid vs quantité finalement retenue.
+    """
+    return lister_commandes_validees(
+        officine.id, db, date_debut=date_debut, date_fin=date_fin, user_id=user_id,
     )

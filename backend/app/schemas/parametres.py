@@ -1,5 +1,5 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ParametreOfficineOut(BaseModel):
@@ -13,6 +13,9 @@ class ParametreOfficineOut(BaseModel):
     niveau_service_desirable: float
     niveau_service_non_renseigne: float
     plafond_commande_fcfa: Optional[float]
+    notification_active: bool
+    notification_heure: str
+    notification_email: Optional[str]
 
     model_config = {"from_attributes": True}
 
@@ -34,3 +37,21 @@ class ParametreOfficineUpdate(BaseModel):
     # Optionnel : vide/absent = pas de plafond (section 6.7). Peut être remis à
     # None explicitement pour désactiver le plafond une fois configuré.
     plafond_commande_fcfa: Optional[float] = Field(default=None, ge=0)
+    # Notification quotidienne par e-mail (section 7.2) — envoi opportuniste,
+    # voir app/services/notification_quotidienne.py.
+    notification_active: Optional[bool] = None
+    notification_heure: Optional[str] = None
+    notification_email: Optional[str] = None
+
+    @field_validator("notification_heure")
+    @classmethod
+    def valider_heure(cls, v):
+        if v is None:
+            return v
+        try:
+            h, m = v.split(":")
+            if not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+                raise ValueError
+        except (ValueError, AttributeError):
+            raise ValueError("notification_heure doit être au format HH:MM.")
+        return v

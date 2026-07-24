@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, Integer, Boolean, ForeignKey, Uuid
+from sqlalchemy import Column, Float, Integer, Boolean, String, Date, ForeignKey, Uuid
 from app.models.base import BaseModel
 
 
@@ -49,3 +49,12 @@ class ParametreOfficine(BaseModel):
     # sur les références présentes dans le dernier import de commande (Type
     # 2), au lieu de l'historique complet. L'encart 7.0 n'est jamais concerné.
     mode_commande_ciblee = Column(Boolean, nullable=False, default=False)
+
+    # Notification quotidienne par e-mail (section 7.2 du cahier des charges,
+    # V9) — envoi opportuniste : StockAid ne tournant que lorsqu'on l'ouvre
+    # (pas de serveur permanent), l'envoi se déclenche au premier chargement
+    # du tableau de bord dans la journée, une fois l'heure configurée passée.
+    notification_active = Column(Boolean, nullable=False, default=False)
+    notification_heure = Column(String, nullable=False, default="08:00")  # "HH:MM"
+    notification_email = Column(String, nullable=True)  # repli sur l'e-mail du compte si vide
+    notification_derniere_envoyee_le = Column(Date, nullable=True)

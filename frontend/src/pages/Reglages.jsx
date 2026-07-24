@@ -18,6 +18,9 @@ function versFormulaire(params) {
     niveau_service_desirable_pct: String(Math.round(params.niveau_service_desirable * 100)),
     niveau_service_non_renseigne_pct: String(Math.round(params.niveau_service_non_renseigne * 100)),
     plafond_commande_fcfa: params.plafond_commande_fcfa != null ? String(params.plafond_commande_fcfa) : '',
+    notification_active: params.notification_active,
+    notification_heure: params.notification_heure,
+    notification_email: params.notification_email || '',
   }
 }
 
@@ -111,6 +114,10 @@ export default function Reglages() {
     return (e) => setForm((prev) => ({ ...prev, [champ]: e.target.value }))
   }
 
+  function toggle(champ) {
+    return (e) => setForm((prev) => ({ ...prev, [champ]: e.target.checked }))
+  }
+
   function handleCircuitSaved(updated) {
     setCircuits((prev) => prev.map((c) => (c.circuit === updated.circuit ? updated : c)))
   }
@@ -138,6 +145,9 @@ export default function Reglages() {
     if (form.plafond_commande_fcfa.trim() !== '' && Number(form.plafond_commande_fcfa) < 0) {
       errors.plafond_commande_fcfa = 'Indiquez un montant positif, ou laissez vide pour ne pas limiter.'
     }
+    if (form.notification_active && !/^\d{2}:\d{2}$/.test(form.notification_heure)) {
+      errors.notification_heure = 'Indiquez une heure au format HH:MM.'
+    }
     return errors
   }
 
@@ -162,6 +172,9 @@ export default function Reglages() {
         niveau_service_desirable: Number(form.niveau_service_desirable_pct) / 100,
         niveau_service_non_renseigne: Number(form.niveau_service_non_renseigne_pct) / 100,
         plafond_commande_fcfa: form.plafond_commande_fcfa.trim() === '' ? null : Number(form.plafond_commande_fcfa),
+        notification_active: form.notification_active,
+        notification_heure: form.notification_heure,
+        notification_email: form.notification_email.trim() === '' ? null : form.notification_email.trim(),
       })
       setForm(versFormulaire(params))
       setSuccess(true)
@@ -343,6 +356,44 @@ export default function Reglages() {
               onChange={update('plafond_commande_fcfa')}
               error={fieldErrors.plafond_commande_fcfa}
             />
+
+            <hr className="border-slate-200 dark:border-slate-700" />
+
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.notification_active}
+                  onChange={toggle('notification_active')}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-brand focus:ring-brand"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Notification quotidienne par e-mail</span>
+              </label>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Un e-mail résumant les références stratégiques manquées (encart en haut de "Quoi commander"), envoyé une fois par jour dès que vous ouvrez StockAid après l'heure choisie — pas d'heure garantie à la minute, StockAid ne tournant pas en permanence.
+              </p>
+            </div>
+
+            {form.notification_active && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  label="Heure d'envoi"
+                  id="notification_heure"
+                  type="time"
+                  value={form.notification_heure}
+                  onChange={update('notification_heure')}
+                  error={fieldErrors.notification_heure}
+                />
+                <FormField
+                  label="E-mail destinataire"
+                  id="notification_email"
+                  type="email"
+                  hint="Vide = e-mail de votre compte"
+                  value={form.notification_email}
+                  onChange={update('notification_email')}
+                />
+              </div>
+            )}
 
             <SubmitButton loading={saving} loadingLabel="Recalcul en cours… (peut prendre 20 s)">
               Enregistrer les réglages
