@@ -30,7 +30,6 @@ from app.services.calcul_officine import get_or_create_parametres
 from app.services.alertes_strategiques import calculer_alertes_strategiques, references_qualifiees_id
 from app.services.rupture_fournisseur import doit_etre_masquee, en_attente_fournisseur
 from app.services.tracabilite_commandes import enregistrer_commande_validee, lister_commandes_validees
-from app.services.notification_quotidienne import verifier_et_envoyer_notification_quotidienne
 
 router = APIRouter(prefix="/dashboard", tags=["Tableau de pilotage"])
 
@@ -169,13 +168,6 @@ def get_kpis(
     # (mesuré : ~8s sur 7900 références, contre <1s en chargeant après coup).
     params = get_or_create_parametres(officine.id, db)
     db.commit()
-
-    # Section 7.2 : envoi opportuniste à l'ouverture du tableau de bord — ne
-    # doit jamais faire échouer l'affichage des KPIs en cas de souci d'envoi.
-    try:
-        verifier_et_envoyer_notification_quotidienne(officine, params, db)
-    except Exception:
-        db.rollback()
 
     refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
 

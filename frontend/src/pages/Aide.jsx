@@ -63,7 +63,6 @@ const SECTIONS = [
       "Le rythme auquel vous préférez passer vos commandes (tous les jours, tous les 10 jours, ou une fois par mois).",
       "Le niveau de service que vous souhaitez pour chaque catégorie de produit — plus il est élevé, moins vous risquez la rupture, mais plus vous immobilisez de stock.",
       "Un plafond de budget (en FCFA) pour vos commandes, si vous voulez limiter ce que vous dépensez à chaque fois — laissez-le vide pour ne rien limiter.",
-      "Une notification quotidienne par e-mail, si vous voulez être relancé sur vos références stratégiques manquées sans avoir à ouvrir StockAid vous-même.",
     ],
   },
 ]

@@ -42,19 +42,3 @@ def send_password_reset_email(to_email: str, code: str) -> None:
         "votre mot de passe actuel reste inchangé.\n"
     )
     send_email(to_email, subject, body)
-
-
-def send_notification_quotidienne_email(to_email: str, nb_references: int, ventes_perdues_fcfa: float) -> None:
-    """
-    Section 7.2 : reprend le contenu de l'encart 7.0 en une phrase, pour
-    relancer le pharmacien sans qu'il ait besoin d'ouvrir StockAid.
-    """
-    subject = f"StockAid — {nb_references} référence(s) stratégique(s) en rupture ou critique"
-    montant = f"{ventes_perdues_fcfa:,.0f}".replace(",", " ")
-    body = (
-        "Bonjour,\n\n"
-        f"{nb_references} référence(s) classe A ou B sont actuellement en RUPTURE ou CRITIQUE, "
-        f"pour une estimation de {montant} FCFA de ventes perdues sur cette période.\n\n"
-        "Ouvrez StockAid pour voir le détail et préparer votre commande.\n"
-    )
-    send_email(to_email, subject, body)
