@@ -20,6 +20,7 @@ export default function DecisionsCommande() {
   const [aCommander, setACommander] = useState([])
   const [neSourcePasCommander, setNePasCommander] = useState([])
   const [chargement, setChargement] = useState(true)
+  const [recherche, setRecherche] = useState('')
 
   const charger = useCallback(() => {
     return Promise.all([getListeAction(), getANePasCommander()])
@@ -36,7 +37,16 @@ export default function DecisionsCommande() {
 
   useEffect(() => { charger() }, [charger])
 
-  const urgents = aCommander.filter((l) => l.statut === 'RUPTURE' || l.statut === 'CRITIQUE').slice(0, 8)
+  const q = recherche.trim().toLowerCase()
+  const correspond = (l) => l.code?.toLowerCase().includes(q) || l.designation?.toLowerCase().includes(q)
+
+  // Sans recherche : les 8 plus urgentes, comme d'habitude. Avec une
+  // recherche, on montre tous les résultats correspondants — plus utile que
+  // de rester limité aux 8 premiers pendant qu'on cherche un produit précis.
+  const urgents = q
+    ? aCommander.filter(correspond)
+    : aCommander.filter((l) => l.statut === 'RUPTURE' || l.statut === 'CRITIQUE').slice(0, 8)
+  const nePasCommanderFiltre = q ? neSourcePasCommander.filter(correspond) : neSourcePasCommander
   const totalImmobilise = neSourcePasCommander.reduce((s, l) => s + (l.tresorerie_immobilisee || 0), 0)
 
   return (
@@ -46,6 +56,19 @@ export default function DecisionsCommande() {
         title="Quoi commander ?"
         subtitle="Ce qu'il faut commander en priorité, et ce qu'il ne faut surtout pas recommander."
       />
+
+      <div className="relative w-full sm:w-80">
+        <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <path d="M17.5 17.5l-4.167-4.167M14.167 8.333a5.833 5.833 0 1 1-11.667 0 5.833 5.833 0 0 1 11.667 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        <input
+          type="text"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Rechercher un produit ou un code…"
+          className="pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 w-full"
+        />
+      </div>
 
       {chargement && <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>}
 
@@ -73,6 +96,8 @@ export default function DecisionsCommande() {
 
             {aCommander.length === 0 ? (
               <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">Rien à commander pour l'instant.</p>
+            ) : urgents.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">Aucun résultat pour cette recherche.</p>
             ) : (
               <div className="mt-4 space-y-2.5">
                 {urgents.map((l) => {
@@ -89,7 +114,7 @@ export default function DecisionsCommande() {
                     </div>
                   )
                 })}
-                {aCommander.length > urgents.length && (
+                {!q && aCommander.length > urgents.length && (
                   <p className="text-xs text-slate-400 dark:text-slate-500 pt-1">
                     + {aCommander.length - urgents.length} autre{aCommander.length - urgents.length > 1 ? 's' : ''} référence{aCommander.length - urgents.length > 1 ? 's' : ''} à commander — voir la liste complète.
                   </p>
@@ -107,6 +132,8 @@ export default function DecisionsCommande() {
 
             {neSourcePasCommander.length === 0 ? (
               <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">Aucun produit à signaler pour l'instant.</p>
+            ) : nePasCommanderFiltre.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">Aucun résultat pour cette recherche.</p>
             ) : (
               <>
                 <div className="mt-4 rounded-xl bg-danger-light dark:bg-danger/10 border border-danger/20 px-4 py-3">
@@ -116,7 +143,7 @@ export default function DecisionsCommande() {
                 </div>
 
                 <div className="mt-4 space-y-2.5">
-                  {neSourcePasCommander.map((l) => (
+                  {nePasCommanderFiltre.map((l) => (
                     <div key={l.code} className="flex gap-3 rounded-xl border border-slate-100 dark:border-slate-700/70 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">

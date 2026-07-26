@@ -95,6 +95,22 @@ const NAV_ITEMS = [
     ),
   },
   {
+    to: '/reapprovisionnement',
+    label: 'Réapprovisionnement',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+        <path
+          d="M3 7.5 12 3l9 4.5-9 4.5-9-4.5Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <path d="M3 7.5V17l9 4.5 9-4.5V7.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12 12v9.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     to: '/reglages',
     label: 'Réglages',
     icon: (

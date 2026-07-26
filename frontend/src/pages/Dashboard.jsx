@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getOfficineNom } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
 import { getKpis, getCommandePlafonnee } from '../services/dashboard'
+import { getEtatImport } from '../services/imports'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import RepartitionStockDonut from '../components/RepartitionStockDonut'
 import VentesM1Table from '../components/VentesM1Table'
@@ -43,18 +44,21 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [kpis, setKpis] = useState(null)
   const [plafond, setPlafond] = useState(null)
+  const [etatImport, setEtatImport] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [maintenant, setMaintenant] = useState(new Date())
 
   const charger = useCallback(async () => {
     setChargement(true)
     try {
-      const [kpis, plafond] = await Promise.all([
+      const [kpis, plafond, etatImport] = await Promise.all([
         getKpis(),
         getCommandePlafonnee().catch(() => null),
+        getEtatImport().catch(() => null),
       ])
       setKpis(kpis)
       setPlafond(plafond)
+      setEtatImport(etatImport)
     } catch {
       setKpis(null)
     } finally {
@@ -75,6 +79,7 @@ export default function Dashboard() {
   }
 
   const aDesReferences = kpis && kpis.nb_references > 0
+  const stockNonInitialise = etatImport?.historique_initialise && !etatImport?.stock_initialise
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-6xl mx-auto space-y-6">
@@ -119,6 +124,20 @@ export default function Dashboard() {
             <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
           </svg>
           Chargement des données…
+        </div>
+      )}
+
+      {/* ── Avertissement : historique prêt mais aucun stock réel encore importé ── */}
+      {!chargement && stockNonInitialise && (
+        <div className="rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-300/60 dark:border-orange-500/30 px-5 py-4">
+          <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+            Stock pas encore renseigné — les recommandations ci-dessous ne sont pas fiables
+          </p>
+          <p className="mt-1 text-xs text-orange-700/90 dark:text-orange-400/90">
+            Votre historique mensuel est prêt, mais aucun import "Préparer ma commande" ou "Réapprovisionnement" n'a
+            encore été fait : le stock actuel de vos références est encore inconnu, donc tout apparaît en rupture à
+            tort. Faites un import "Préparer ma commande" avec votre export Logpharma du moment pour corriger ça.
+          </p>
         </div>
       )}
 

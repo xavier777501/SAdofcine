@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getListeAction, exportListe, getCommandePlafonnee, getEnAttenteFournisseur } from '../services/dashboard'
 import { updateAjustementCommande, updateFournisseurIndisponible } from '../services/references'
+import { getEtatImport } from '../services/imports'
 import PageHeader from '../components/PageHeader'
 
 function formatFCFA(val) {
@@ -334,19 +335,23 @@ export default function ListeAction() {
   const [ligneOuverte, setLigneOuverte] = useState(null)
   const [filtreStatut, setFiltreStatut] = useState('TOUS')
   const [filtreClasse, setFiltreClasse] = useState('TOUS')
+  const [recherche, setRecherche] = useState('')
   const [ajustementEnCours, setAjustementEnCours] = useState(null)
+  const [etatImport, setEtatImport] = useState(null)
 
   const charger = useCallback(async (avecSpinner = true) => {
     if (avecSpinner) setChargement(true)
     try {
-      const [liste, plafond, enAttente] = await Promise.all([
+      const [liste, plafond, enAttente, etatImport] = await Promise.all([
         getListeAction(),
         getCommandePlafonnee().catch(() => null),
         getEnAttenteFournisseur().catch(() => []),
+        getEtatImport().catch(() => null),
       ])
       setListe(liste)
       setPlafond(plafond)
       setEnAttente(enAttente)
+      setEtatImport(etatImport)
     } catch {
       if (avecSpinner) setListe([])
     } finally {
@@ -357,6 +362,7 @@ export default function ListeAction() {
   useEffect(() => { charger() }, [charger])
 
   const plafondActif = plafond && !plafond.sans_restriction
+  const stockNonInitialise = etatImport?.historique_initialise && !etatImport?.stock_initialise
 
   async function handleExport(format) {
     setExportEnCours(format)
@@ -391,9 +397,16 @@ export default function ListeAction() {
     return filtreClasse === 'TOUS' ? lignes : lignes.filter(l => l.classe === filtreClasse)
   }
 
-  const listeFiltre = filtrerParClasse(
+  function filtrerParRecherche(lignes) {
+    const q = recherche.trim().toLowerCase()
+    if (!q) return lignes
+    return lignes.filter(l => l.code?.toLowerCase().includes(q) || l.designation?.toLowerCase().includes(q))
+  }
+
+  const listeFiltre = filtrerParRecherche(filtrerParClasse(
     filtreStatut === 'TOUS' ? liste : liste.filter(l => l.statut === filtreStatut)
-  )
+  ))
+  const enAttenteFiltre = filtrerParRecherche(enAttente)
 
   return (
     <div className="px-6 py-8 md:px-10 md:py-10 max-w-6xl mx-auto space-y-6">
@@ -402,6 +415,32 @@ export default function ListeAction() {
         title="Liste d'action"
         subtitle="Références à traiter, triées par urgence — cliquez sur une ligne pour voir le conseil"
       />
+
+      {!chargement && stockNonInitialise && (
+        <div className="rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-300/60 dark:border-orange-500/30 px-5 py-4">
+          <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+            Stock pas encore renseigné — cette liste n'est pas fiable pour l'instant
+          </p>
+          <p className="mt-1 text-xs text-orange-700/90 dark:text-orange-400/90">
+            Aucun import "Préparer ma commande" ou "Réapprovisionnement" n'a encore été fait : le stock actuel de vos
+            références est inconnu, donc tout apparaît en rupture à tort. Faites un import "Préparer ma commande"
+            pour corriger ça.
+          </p>
+        </div>
+      )}
+
+      <div className="relative w-full sm:w-80">
+        <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <path d="M17.5 17.5l-4.167-4.167M14.167 8.333a5.833 5.833 0 1 1-11.667 0 5.833 5.833 0 0 1 11.667 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        <input
+          type="text"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Rechercher un produit ou un code…"
+          className="pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 w-full"
+        />
+      </div>
 
       {!chargement && plafondActif && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 p-5 space-y-3">
@@ -487,7 +526,7 @@ export default function ListeAction() {
                 </tr>
               </thead>
               <tbody>
-                {filtrerParClasse(plafond.hors_plafond).map((ligne) => (
+                {filtrerParRecherche(filtrerParClasse(plafond.hors_plafond)).map((ligne) => (
                   <LignePlafond
                     key={ligne.id}
                     ligne={ligne}
@@ -498,7 +537,7 @@ export default function ListeAction() {
                     saving={ajustementEnCours === ligne.id}
                   />
                 ))}
-                {filtrerParClasse(plafond.inclus).map((ligne) => (
+                {filtrerParRecherche(filtrerParClasse(plafond.inclus)).map((ligne) => (
                   <LignePlafond
                     key={ligne.id}
                     ligne={ligne}
@@ -516,7 +555,7 @@ export default function ListeAction() {
                     </td>
                   </tr>
                 )}
-                {filtrerParClasse(plafond.reporte).map((ligne) => (
+                {filtrerParRecherche(filtrerParClasse(plafond.reporte)).map((ligne) => (
                   <LignePlafond
                     key={ligne.id}
                     ligne={ligne}
@@ -647,7 +686,10 @@ export default function ListeAction() {
             </p>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            {enAttente.map((ligne) => {
+            {enAttenteFiltre.length === 0 && (
+              <p className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">Aucun résultat pour cette recherche.</p>
+            )}
+            {enAttenteFiltre.map((ligne) => {
               const statCfg = STATUT_CFG[ligne.statut] || {}
               return (
                 <div key={ligne.id} className="flex items-center gap-3 px-6 py-3">

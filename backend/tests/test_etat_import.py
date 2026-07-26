@@ -13,6 +13,7 @@ from app.models.officine import Officine
 from app.models.user import User
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
+from app.models.import_log import ImportLog
 
 
 @pytest.fixture(autouse=True)
@@ -117,3 +118,59 @@ class TestEtatImport:
         response = client.get("/api/v1/imports/etat", headers=headers)
         assert response.status_code == 200
         assert response.json()["nb_mois_historique"] == 0
+
+
+class TestStockInitialise:
+    """
+    Section 4bis : depuis que le Type 1 ne touche plus au stock, seul un
+    import Type 2 ou Type 3 réussi donne un stock réel — l'écran doit pouvoir
+    avertir tant que ce n'est pas encore arrivé.
+    """
+
+    def test_faux_sans_aucun_import(self, client, token):
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        assert response.json()["stock_initialise"] is False
+
+    def test_faux_avec_seulement_un_import_historique_type1(self, client, token, db_session, officine):
+        db_session.add(ImportLog(
+            officine_id=officine.id, nom_fichier="historique.xlsx", statut="succes",
+        ))
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        assert response.json()["stock_initialise"] is False
+
+    def test_vrai_apres_un_import_commande_type2_reussi(self, client, token, db_session, officine):
+        db_session.add(ImportLog(
+            officine_id=officine.id, nom_fichier="commande.xlsx", statut="succes",
+            sorties_totales=120.0,
+        ))
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        assert response.json()["stock_initialise"] is True
+
+    def test_vrai_apres_un_import_reception_type3_reussi(self, client, token, db_session, officine):
+        db_session.add(ImportLog(
+            officine_id=officine.id, nom_fichier="livraison.rtf", statut="succes",
+            fournisseur="GROSSISTE FICTIF SARL",
+        ))
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        assert response.json()["stock_initialise"] is True
+
+    def test_faux_si_import_type2_en_erreur(self, client, token, db_session, officine):
+        db_session.add(ImportLog(
+            officine_id=officine.id, nom_fichier="commande.xlsx", statut="erreur",
+            sorties_totales=120.0,
+        ))
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        assert response.json()["stock_initialise"] is False

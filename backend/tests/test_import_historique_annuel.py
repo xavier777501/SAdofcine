@@ -109,7 +109,8 @@ class TestImportHistoriqueAnnuel:
 
         ref = db_session.query(Reference).filter(Reference.code == "A001").first()
         assert ref is not None
-        assert ref.stock_actuel == 50.0
+        # Section 4bis : le Type 1 (dont sa variante annuelle) ne touche jamais au stock.
+        assert ref.stock_actuel == 0.0
         assert ref.prix_cession == 550.0
 
         # CMM = 1200 / 12 = 100, la seule valeur dérivable d'un total unique
@@ -129,8 +130,8 @@ class TestImportHistoriqueAnnuel:
         ventes = db_session.query(VenteMensuelle).filter(VenteMensuelle.reference_id == ref.id).all()
         assert len(ventes) == 0
 
-    def test_stock_actuel_inclut_la_reserve(self, client, token, db_session):
-        """Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve."""
+    def test_stock_actuel_jamais_touche_meme_avec_reserve(self, client, token, db_session):
+        """Section 4bis (V9) : Qté Sal. + Réserve ne s'applique qu'au Type 2/3, jamais au Type 1."""
         headers = {"Authorization": f"Bearer {token}"}
         client.post(
             "/api/v1/imports/historique-logpharma-annuel",
@@ -138,7 +139,7 @@ class TestImportHistoriqueAnnuel:
             headers=headers,
         )
         ref = db_session.query(Reference).filter(Reference.code == "A001").first()
-        assert ref.stock_actuel == 58.0  # 50 (Qté Sal.) + 8 (Réserve)
+        assert ref.stock_actuel == 0.0
 
     def test_sorties_negatives_donnent_cmm_zero(self, client, token, db_session):
         headers = {"Authorization": f"Bearer {token}"}

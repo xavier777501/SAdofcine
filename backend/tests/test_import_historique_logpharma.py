@@ -114,7 +114,9 @@ class TestImportHistoriqueLogpharmaGlissant:
 
         ref = db_session.query(Reference).filter(Reference.code == "A001").first()
         assert ref is not None
-        assert ref.stock_actuel == 50.0
+        # Section 4bis : le Type 1 ne touche jamais au stock actuel (seuls
+        # les Types 2 et 3 en sont chargés) — une nouvelle référence démarre à 0.
+        assert ref.stock_actuel == 0.0
         assert ref.prix_cession == 550.0
 
         ventes = db_session.query(VenteMensuelle).filter(VenteMensuelle.reference_id == ref.id).all()
@@ -123,15 +125,16 @@ class TestImportHistoriqueLogpharmaGlissant:
         assert ventes[0].quantite == 120.0
         assert ref.cmm == 10.0  # 120 / 12
 
-    def test_deuxieme_import_decale_lancien_mois_et_met_a_jour_le_stock(self, client, token, db_session):
+    def test_deuxieme_import_decale_lancien_mois_sans_toucher_au_stock(self, client, token, db_session):
         headers = {"Authorization": f"Bearer {token}"}
         _importer(client, headers, stock=50, sorties=120)
         response = _importer(client, headers, stock=80, sorties=60)
         assert response.status_code == 200
 
         ref = db_session.query(Reference).filter(Reference.code == "A001").first()
-        # Le stock reflète toujours le dernier import, quel qu'il soit
-        assert ref.stock_actuel == 80.0
+        # Section 4bis : le Type 1 ne modifie jamais le stock, quelle que soit
+        # la valeur "Qté Sal." présente dans le fichier.
+        assert ref.stock_actuel == 0.0
 
         ventes = db_session.query(VenteMensuelle).filter(
             VenteMensuelle.reference_id == ref.id
@@ -174,12 +177,12 @@ class TestImportHistoriqueLogpharmaGlissant:
         body = response.json()
         assert body["nb_lignes_erreur"] == 1
 
-    def test_stock_actuel_inclut_la_reserve(self, client, token, db_session):
-        """Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve."""
+    def test_stock_actuel_jamais_touche_meme_avec_reserve(self, client, token, db_session):
+        """Section 4bis (V9) : Qté Sal. + Réserve ne s'applique qu'au Type 2/3, jamais au Type 1."""
         headers = {"Authorization": f"Bearer {token}"}
         _importer(client, headers, stock=50, reserve=15, sorties=100)
         ref = db_session.query(Reference).filter(Reference.code == "A001").first()
-        assert ref.stock_actuel == 65.0  # 50 (Qté Sal.) + 15 (Réserve)
+        assert ref.stock_actuel == 0.0
 
 
 class TestListeDemarrageVed:

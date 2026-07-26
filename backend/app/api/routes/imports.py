@@ -27,6 +27,7 @@ from app.services.file_parser import (
     get_columns,
     parse_file,
     parse_commande_logpharma,
+    parse_reception_logpharma,
 )
 from app.services.ved_starter_list import correspond_liste_demarrage
 
@@ -69,9 +70,26 @@ def get_etat_import(
     )
     nb_mois_historique = ligne_max[0] if ligne_max else 0
 
+    # Section 4bis : depuis que le Type 1 ne touche plus au stock, seul un
+    # import Type 2 (sorties_totales renseigné) ou Type 3 (fournisseur
+    # renseigné) réussi donne un stock réel au moteur. Sans ça, la liste
+    # d'action afficherait tout en rupture à tort — l'interface doit pouvoir
+    # avertir le pharmacien tant que ce n'est pas encore arrivé.
+    stock_initialise = (
+        db.query(ImportLog)
+        .filter(
+            ImportLog.officine_id == officine.id,
+            ImportLog.statut == "succes",
+            (ImportLog.sorties_totales.isnot(None)) | (ImportLog.fournisseur.isnot(None)),
+        )
+        .first()
+        is not None
+    )
+
     return {
         "historique_initialise": historique_initialise,
         "nb_mois_historique": nb_mois_historique,
+        "stock_initialise": stock_initialise,
     }
 
 
@@ -347,8 +365,10 @@ async def import_historique_logpharma(
 
     Pour l'initialisation, répéter cet import jusqu'à 12 fois, du mois le plus
     ancien au plus récent, pour reconstituer l'historique glissant complet.
-    Chaque import met aussi à jour le stock actuel, puisqu'il représente
-    toujours le mois le plus récent au moment où il est réalisé.
+
+    Ne touche jamais au stock actuel (section 4bis) : seul le Type 2 (import
+    de commande) et le Type 3 (réception fournisseur) sont autorisés à le
+    modifier. Le Type 1 ne calcule que CMM/sigma/classe ABC/statut FSN.
     """
     content = await file.read()
     if len(content) > MAX_BYTES:
@@ -418,12 +438,6 @@ async def import_historique_logpharma(
             ref.prix_public = ligne["prix_public"]
         if ligne.get("circuit"):
             ref.circuit = ligne["circuit"]
-
-        # Cet import représente toujours le mois le plus récent : le stock
-        # actuel est mis à jour à chaque fois.
-        # Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve — une
-        # partie du stock peut être gardée hors rayon (trésorerie/organisation).
-        ref.stock_actuel = ligne["stock_actuel"] + (ligne.get("reserve") or 0.0)
 
         db.flush()  # pour avoir ref.id
 
@@ -545,10 +559,6 @@ async def import_historique_logpharma_annuel(
         if ligne.get("circuit"):
             ref.circuit = ligne["circuit"]
 
-        # Section 4bis (V9) : stock actuel total = Qté Sal. + Réserve — une
-        # partie du stock peut être gardée hors rayon (trésorerie/organisation).
-        ref.stock_actuel = ligne["stock_actuel"] + (ligne.get("reserve") or 0.0)
-
         # Sorties négatives (corrections d'inventaire) exclues, section 6.1.
         total_periode = max(0.0, ligne.get("sorties_periode") or 0.0)
         ref.cmm = round(total_periode / 12.0, 1)
@@ -567,6 +577,79 @@ async def import_historique_logpharma_annuel(
         nb_lignes_ok=nb_ok,
         nb_lignes_erreur=nb_err,
         erreurs_detail=json.dumps(erreurs, ensure_ascii=False) if erreurs else None,
+    )
+    db.add(import_log)
+    db.commit()
+    db.refresh(import_log)
+
+    return import_log
+
+
+# ─── Import Type 3 : réception fournisseur (bon de livraison RTF) ────────────
+
+@router.post("/reception", response_model=ImportLogOut)
+async def import_reception_fournisseur(
+    file: UploadFile = File(...),
+    officine: Officine = Depends(get_current_officine),
+    db: Session = Depends(get_db),
+):
+    """
+    Import Type 3 (section 4quater) : bon de livraison/réception fournisseur,
+    format RTF généré par Logpharma (habillé en .doc/.docx à l'enregistrement).
+
+    Remplace directement stock_actuel par la colonne "Stock Fin." du fichier
+    pour chaque référence livrée — jamais d'addition, jamais de recalcul de
+    CMM/sigma/classe ABC/FSN/VED (ces données de fond ne viennent que de
+    l'import historique, Type 1). Effet immédiat attendu : la référence
+    livrée sort de la liste d'action/de l'encart 7.0 dès que son nouveau
+    stock couvre le besoin, sans attendre le prochain import de commande.
+    """
+    content = await file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Fichier trop volumineux (max {settings.MAX_UPLOAD_SIZE_MB} Mo).",
+        )
+
+    try:
+        resultat = parse_reception_logpharma(content)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    nb_ok = 0
+    nb_err = 0
+    erreurs: list[dict] = []
+
+    for ligne in resultat["lignes"]:
+        ref = db.query(Reference).filter(
+            Reference.officine_id == officine.id,
+            Reference.code == ligne["code"],
+        ).first()
+
+        if ref is None:
+            nb_err += 1
+            erreurs.append({"ligne": ligne["code"], "raison": "Code introuvable dans votre base"})
+            continue
+
+        if ligne["stock_fin"] is None:
+            nb_err += 1
+            erreurs.append({"ligne": ligne["code"], "raison": "Stock Fin. illisible sur cette ligne"})
+            continue
+
+        ref.stock_actuel = ligne["stock_fin"]
+        nb_ok += 1
+
+    recalculer_apres_commande(officine.id, db)
+
+    import_log = ImportLog(
+        officine_id=officine.id,
+        nom_fichier=file.filename or "inconnu",
+        statut="succes",
+        nb_lignes_total=len(resultat["lignes"]),
+        nb_lignes_ok=nb_ok,
+        nb_lignes_erreur=nb_err,
+        erreurs_detail=json.dumps(erreurs, ensure_ascii=False) if erreurs else None,
+        fournisseur=resultat["fournisseur"],
     )
     db.add(import_log)
     db.commit()

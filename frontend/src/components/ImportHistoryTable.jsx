@@ -45,6 +45,7 @@ export default function ImportHistoryTable() {
                 <th className="px-4 py-2 font-medium">Statut</th>
                 <th className="px-4 py-2 font-medium">Lignes OK</th>
                 <th className="px-4 py-2 font-medium">Lignes erreur</th>
+                <th className="px-4 py-2 font-medium">Fournisseur</th>
               </tr>
             </thead>
             <tbody>
@@ -63,6 +64,7 @@ export default function ImportHistoryTable() {
                   </td>
                   <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.nb_lignes_ok ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.nb_lignes_erreur ?? '—'}</td>
+                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.fournisseur ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

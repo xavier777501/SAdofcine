@@ -22,6 +22,7 @@ class ImportLogOut(BaseModel):
     nb_lignes_erreur: Optional[int]
     erreurs_detail: Optional[str]
     sorties_totales: Optional[float]
+    fournisseur: Optional[str]
     created_at: datetime
 
     model_config = {"from_attributes": True}

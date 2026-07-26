@@ -16,3 +16,4 @@ class ImportLog(BaseModel):
     nb_lignes_erreur = Column(Integer, nullable=True)
     erreurs_detail   = Column(Text, nullable=True)   # JSON des erreurs par ligne
     sorties_totales  = Column(Float, nullable=True)  # import de commande (Type 2) uniquement : somme des sorties de la période
+    fournisseur      = Column(String, nullable=True)  # import réception (Type 3) uniquement : nom capturé dans l'en-tête, à titre indicatif

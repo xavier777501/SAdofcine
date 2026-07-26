@@ -1,5 +1,5 @@
 """
-Parsing des fichiers d'import CSV/Excel.
+Parsing des fichiers d'import CSV/Excel/RTF.
 Retourne un DataFrame brut + la liste des colonnes disponibles.
 """
 import io
@@ -265,3 +265,144 @@ def _coerce(champ: str, valeur):
             raise ValueError(f"Valeur non numérique pour '{champ}' : {valeur!r}")
 
     return str(valeur).strip()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Import Type 3 — bon de livraison / réception fournisseur (section 4quater)
+#
+# Logpharma génère ce document au format RTF (habillé en .doc/.docx à
+# l'enregistrement), pas en Word natif (OOXML) — donc pas de python-docx ici,
+# un parseur RTF texte suffit et évite une dépendance supplémentaire.
+# Structure validée sur un fichier réel fourni par le client : un en-tête
+# (nom officine, "FACT. DU FOURNIS. : X", "FACTURE OU B.L. N° X du DATE"),
+# un tableau à 12 colonnes (N° Ligne, Code, Désignation, Qté livrée,
+# Stock Init, Stock Fin., Prix Ces., Prix Pub, Montant Ligne, Lieu, Heure,
+# Marge — "Peix Ces." dans le fichier réel, faute de frappe du modèle
+# Logpharma lui-même, comme "FOURNISEUR" pour le Type 2), puis un pied de
+# page "Nombre de lignes : N".
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _decoder_bytes_rtf(content: bytes) -> str:
+    """RTF Windows classique : UTF-8 si le fichier a été réenregistré ainsi,
+    sinon repli sur cp1252 (codepage ANSI par défaut de Logpharma/Windows)."""
+    for encodage in ("utf-8", "cp1252"):
+        try:
+            return content.decode(encodage)
+        except UnicodeDecodeError:
+            continue
+    return content.decode("utf-8", errors="replace")
+
+
+def _decoder_echappement_rtf(texte: str) -> str:
+    """Décode les échappements hexadécimaux standards du RTF (\\'e9 = é en
+    cp1252) — le fichier de test fourni n'en contient pas (accents en UTF-8
+    direct), mais un vrai export Logpharma pourrait suivre la convention RTF
+    classique ; on gère les deux sans supposer laquelle sera utilisée."""
+    def _remplacer(m):
+        return bytes([int(m.group(1), 16)]).decode("cp1252", errors="replace")
+    return re.sub(r"\\'([0-9a-fA-F]{2})", _remplacer, texte)
+
+
+def _cellules_rtf(segment: str) -> list[str]:
+    """Découpe un segment de ligne de tableau RTF (entre deux \\row) en texte
+    de cellule, en retirant tous les mots de contrôle RTF."""
+    morceaux = re.split(r"\\(?:nest)?cell(?![a-zA-Z])", segment)
+    cellules = []
+    for morceau in morceaux:
+        texte = re.sub(r"\\par(?![a-zA-Z])", " ", morceau)
+        # \cellx1234 = position de bordure, jamais du contenu — à distinguer
+        # de \cell (fin de cellule) traité juste au-dessus.
+        texte = re.sub(r"\\cellx\d+", " ", texte)
+        texte = re.sub(r"\{[^{}]*\}", "", texte)
+        texte = re.sub(r"\\[a-zA-Z]+-?\d*\s?", " ", texte)
+        texte = re.sub(r"[{}]", "", texte)
+        texte = re.sub(r"\s+", " ", texte).strip()
+        if texte:
+            cellules.append(texte)
+    return cellules
+
+
+def _to_float_fr(val: Optional[str]) -> Optional[float]:
+    if val is None:
+        return None
+    s = str(val).strip().replace(" ", "").replace("\xa0", "")
+    if s in ("", "nan", "NaN", "-", "N/A"):
+        return None
+    try:
+        return float(s.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def parse_reception_logpharma(content: bytes) -> dict:
+    """
+    Parse un bon de livraison/réception fournisseur Logpharma (Type 3,
+    section 4quater). Retourne :
+      {"fournisseur": str | None, "bl_numero": str | None, "bl_date": str | None,
+       "lignes": [{"code", "designation", "qte_livree", "stock_init",
+                   "stock_fin", "prix_cession", "prix_public"}]}
+    Ne calcule rien d'autre : c'est à l'appelant de remplacer stock_actuel
+    par stock_fin, sans jamais toucher CMM/sigma/ABC/FSN/VED (section 4quater).
+    """
+    try:
+        texte = _decoder_bytes_rtf(content)
+    except Exception as e:
+        raise ValueError(f"Fichier illisible : {e}") from e
+
+    texte = _decoder_echappement_rtf(texte)
+    texte_sans_nested = re.sub(r"\{\\\*\\nesttableprops.*?\\nestrow\}", "", texte, flags=re.DOTALL)
+
+    fournisseur = None
+    m = re.search(r"FOURNIS\.\s*:\s*([^\\{}]+?)\\nestcell", texte_sans_nested)
+    if m:
+        fournisseur = m.group(1).strip() or None
+
+    bl_numero = bl_date = None
+    m2 = re.search(r"FACTURE OU B\.L\.\s*N°\s*([^\s]+)\s*du\s*([^\\{}]+?)\\nestcell", texte_sans_nested)
+    if m2:
+        bl_numero = m2.group(1).strip() or None
+        bl_date = m2.group(2).strip() or None
+
+    segments = re.split(r"\\row", texte_sans_nested)
+    lignes_cellules = [_cellules_rtf(s) for s in segments]
+
+    entete_idx = next(
+        (i for i, c in enumerate(lignes_cellules) if any("Ligne" in x for x in c) and "Code" in c),
+        None,
+    )
+    if entete_idx is None:
+        raise ValueError(
+            "En-tête du tableau introuvable — vérifiez que c'est bien un bon de "
+            "livraison/réception Logpharma (format RTF)."
+        )
+
+    lignes: list[dict] = []
+    for cellules in lignes_cellules[entete_idx + 1:]:
+        if any("Nombre de lignes" in c for c in cellules):
+            break
+        # 12 colonnes attendues ; on tolère des lignes légèrement écourtées
+        # tant que les 8 premières colonnes (jusqu'à Prix Pub) sont présentes.
+        if len(cellules) < 8:
+            continue
+        code = cellules[1].strip()
+        if not code or code.lower() == "nan":
+            continue
+        lignes.append({
+            "code": code,
+            "designation": cellules[2].strip() or None,
+            "qte_livree": _to_float_fr(cellules[3]),
+            "stock_init": _to_float_fr(cellules[4]),
+            "stock_fin": _to_float_fr(cellules[5]),
+            "prix_cession": _to_float_fr(cellules[6]),
+            "prix_public": _to_float_fr(cellules[7]),
+        })
+
+    if not lignes:
+        raise ValueError("Aucune ligne de livraison trouvée dans le fichier.")
+
+    return {
+        "fournisseur": fournisseur,
+        "bl_numero": bl_numero,
+        "bl_date": bl_date,
+        "lignes": lignes,
+    }

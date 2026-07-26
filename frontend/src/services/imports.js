@@ -100,6 +100,21 @@ export async function runImportHistoriqueAnnuel(file) {
   return data
 }
 
+/**
+ * Import Type 3 (section 4quater) : bon de livraison/réception fournisseur,
+ * format RTF généré par Logpharma. Remplace directement le stock actuel des
+ * références livrées — jamais l'historique 12 mois ni les calculs de fond.
+ */
+export async function runImportReception(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/imports/reception', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT_MS,
+  })
+  return data
+}
+
 export async function getImportHistory() {
   const { data } = await api.get('/imports/')
   return data

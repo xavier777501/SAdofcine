@@ -53,6 +53,16 @@ const SECTIONS = [
       "Deux options, pour deux usages différents — vous choisissez laquelle à chaque fois :",
       "« Mettre à jour l'historique mensuel » — sert uniquement à calibrer la précision du moteur de calcul (ventes moyennes, seuils, priorités), jamais à passer une commande. Au départ, il faut importer vos 12 derniers mois un par un (un fichier par mois). Ensuite, un seul fichier par mois suffit : le mois le plus ancien sort automatiquement et le nouveau entre.",
       "« Préparer ma commande » — à chaque fois que vous voulez passer une commande, avec l'export Logpharma du moment. Ça met à jour votre stock actuel et recalcule instantanément ce qu'il faut commander. Vous pouvez cocher « Limiter cette commande aux références importées » si vous voulez ne travailler que sur les produits de ce fichier précis (utile pour une commande rapide et ciblée) — décochée, l'appli prend en compte tout votre stock comme d'habitude.",
+      "Le réapprovisionnement (livraisons reçues d'un fournisseur) a son propre onglet, séparé — voir ci-dessous.",
+    ],
+  },
+  {
+    titre: 'Réapprovisionnement',
+    resume: "À chaque livraison reçue, pour ne pas recommander un produit déjà réapprovisionné.",
+    texte: [
+      "Importez ici le bon de livraison (fichier Word) que Logpharma génère à chaque réception de marchandise. L'appli met à jour le stock des produits livrés immédiatement, sans attendre votre prochaine commande.",
+      "Vous pouvez importer plusieurs livraisons de fournisseurs différents à la suite, une par une, le même jour.",
+      "Comme pour la commande, ça ne touche jamais vos ventes moyennes, classes ou priorités — ces données de fond ne viennent que de l'historique mensuel.",
     ],
   },
   {
