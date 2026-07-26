@@ -187,8 +187,10 @@ export default function Reglages() {
           </p>
         )}
 
-        {loading ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
+        {loading || !form ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500">
+            {loading ? 'Chargement…' : ''}
+          </p>
         ) : (
           <form
             onSubmit={handleSubmit}
