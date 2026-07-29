@@ -14,8 +14,10 @@ const SECTIONS = [
     resume: "La liste détaillée de tout ce qu'il faut commander, dans l'ordre d'urgence.",
     texte: [
       "Seuls les produits qui ont besoin d'une action apparaissent ici — jamais ceux qui sont dans une situation normale.",
+      "Une barre de recherche en haut vous permet de retrouver un produit par son nom ou son code, sans avoir à parcourir toute la liste.",
       "Classée du plus urgent (rupture) au moins urgent (à commander bientôt), avec pour chaque produit la quantité exacte à commander et sa valeur en FCFA. Vous pouvez filtrer par statut ou par classe (A, B, C) pour vous concentrer sur ce qui compte le plus.",
       "Si vous avez fixé un plafond de budget dans les Réglages, la liste se sépare en deux : ce qui rentre dans le budget, et ce qui est reporté à la prochaine commande faute d'argent disponible (repéré par le bandeau \"HORS PLAFOND\" ou la mention \"reportée\"). Vous pouvez toujours forcer l'inclusion d'un produit reporté si vous jugez que c'est nécessaire — vous gardez la main.",
+      "Si vous avez coché \"Limiter cette commande aux références importées\" lors de votre dernier import de commande, un bandeau bleu vous le rappelle en haut de la liste — c'est normal si elle vous semble plus courte que d'habitude, ça ne concerne que les produits de ce fichier précis.",
       "Si votre grossiste n'a pas non plus un produit en stock, cliquez sur \"Indisponible chez le fournisseur\" et indiquez une date de réévaluation : le produit est mis de côté dans une section \"En attente fournisseur\" en bas de page jusqu'à cette date, pour ne pas vous alerter inutilement sur quelque chose que vous ne pouvez pas commander pour l'instant. Vous pouvez le réactiver à tout moment.",
       "Vous pouvez l'exporter en PDF ou en Excel pour l'emmener ou l'envoyer au moment de passer votre commande.",
     ],
@@ -24,8 +26,9 @@ const SECTIONS = [
     titre: 'Quoi commander',
     resume: "La version simplifiée : que commander, et surtout, quoi ne pas commander.",
     texte: [
-      "Un encart rouge en haut signale vos produits importants (vos plus gros vendeurs) qui sont en rupture ou presque et que vous risquez de rater. Il estime ce que ça vous coûte de ne pas les commander, et un bouton vous permet de les ajouter directement à votre liste de commande.",
-      "En dessous, d'un côté les produits à commander en priorité — un raccourci vers la liste d'action complète.",
+      "Une barre de recherche en haut vous permet de retrouver un produit précis directement, sans passer par la liste complète.",
+      "Un encart rouge signale vos produits importants (vos plus gros vendeurs) qui sont en rupture ou presque et que vous risquez de rater. Il estime ce que ça vous coûte de ne pas les commander, et un bouton vous permet de les ajouter directement à votre liste de commande. Cet encart montre toujours tout votre catalogue, même si vous utilisez le mode \"commande ciblée\" à l'import — il ne doit jamais vous faire rater un produit important.",
+      "En dessous, d'un côté les produits à commander en priorité — un raccourci vers la liste d'action complète. Si le mode ciblé est actif, un bandeau bleu vous le rappelle : cette section ne montre alors que les produits de votre dernier import de commande.",
       "De l'autre, les produits qu'il ne faut surtout pas recommander maintenant : soit parce que vous en avez déjà plus que nécessaire, soit parce qu'ils ne se vendent presque plus. Chaque ligne indique le montant d'argent immobilisé inutilement sur ce produit.",
     ],
   },
@@ -43,6 +46,7 @@ const SECTIONS = [
     resume: "La fiche complète de chaque produit de votre pharmacie.",
     texte: [
       "La liste entière de vos références, avec pour chacune : sa vitesse de rotation (rapide, lente, rare), sa priorité, ses ventes moyennes par mois, et ses seuils de commande.",
+      "Une barre de recherche en haut permet de retrouver un produit directement par son nom ou son code.",
       "C'est ici que vous indiquez, produit par produit, s'il est vital, essentiel ou juste souhaitable pour votre pharmacie — ce réglage influence directement les recommandations.",
     ],
   },
@@ -51,9 +55,10 @@ const SECTIONS = [
     resume: "Où vous déposez vos fichiers pour que l'application reste à jour.",
     texte: [
       "Deux options, pour deux usages différents — vous choisissez laquelle à chaque fois :",
-      "« Mettre à jour l'historique mensuel » — sert uniquement à calibrer la précision du moteur de calcul (ventes moyennes, seuils, priorités), jamais à passer une commande. Au départ, il faut importer vos 12 derniers mois un par un (un fichier par mois). Ensuite, un seul fichier par mois suffit : le mois le plus ancien sort automatiquement et le nouveau entre.",
-      "« Préparer ma commande » — à chaque fois que vous voulez passer une commande, avec l'export Logpharma du moment. Ça met à jour votre stock actuel et recalcule instantanément ce qu'il faut commander. Vous pouvez cocher « Limiter cette commande aux références importées » si vous voulez ne travailler que sur les produits de ce fichier précis (utile pour une commande rapide et ciblée) — décochée, l'appli prend en compte tout votre stock comme d'habitude.",
+      "« Mettre à jour l'historique mensuel » — sert uniquement à calibrer la précision du moteur de calcul (ventes moyennes, seuils, priorités), jamais à passer une commande, et ne touche jamais au stock actuel. Au départ, il faut importer vos 12 derniers mois un par un (un fichier par mois). Ensuite, un seul fichier par mois suffit : le mois le plus ancien sort automatiquement et le nouveau entre. Un bouton \"Réinitialiser l'historique\" en bas permet de tout effacer et repartir à zéro si besoin.",
+      "« Préparer ma commande » — à chaque fois que vous voulez passer une commande, avec l'export Logpharma du moment. Ça met à jour votre stock actuel (Qté Sal. + Réserve) et recalcule instantanément ce qu'il faut commander. Vous pouvez cocher « Limiter cette commande aux références importées » si vous voulez ne travailler que sur les produits de ce fichier précis (utile pour une commande rapide et ciblée) — décochée, l'appli prend en compte tout votre stock comme d'habitude. Un bouton \"Réinitialiser le stock\" permet de remettre tout le stock à 0 si besoin de repartir à zéro.",
       "Le réapprovisionnement (livraisons reçues d'un fournisseur) a son propre onglet, séparé — voir ci-dessous.",
+      "Sous le tableau \"Historique des imports\" (visible ici, sur le tableau de bord et sur Réapprovisionnement), un bouton \"Vider l'historique\" permet de nettoyer ce tableau à l'écran, sans toucher ni au stock ni aux calculs.",
     ],
   },
   {
@@ -63,6 +68,16 @@ const SECTIONS = [
       "Importez ici le bon de livraison (fichier Word) que Logpharma génère à chaque réception de marchandise. L'appli met à jour le stock des produits livrés immédiatement, sans attendre votre prochaine commande.",
       "Vous pouvez importer plusieurs livraisons de fournisseurs différents à la suite, une par une, le même jour.",
       "Comme pour la commande, ça ne touche jamais vos ventes moyennes, classes ou priorités — ces données de fond ne viennent que de l'historique mensuel.",
+      "Un bouton \"Réinitialiser le stock\" en bas de page (le même que sur l'écran \"Préparer ma commande\") permet de remettre tout le stock à 0 si besoin.",
+    ],
+  },
+  {
+    titre: 'La cloche de rappel',
+    resume: "Le remplaçant de la notification par e-mail — toujours sous vos yeux, jamais dans votre boîte mail.",
+    texte: [
+      "En bas à droite de l'écran, sur toutes les pages : une cloche avec un badge rouge dès qu'il y a des références classe A/B en rupture ou critique à surveiller. Sans badge, rien à signaler.",
+      "Cliquez dessus pour ouvrir la page \"Rappel\", qui affiche le message que StockAid vous aurait envoyé ce jour-là (le nombre de références concernées et l'estimation des ventes perdues), avec un bouton pour aller directement les commander.",
+      "StockAid ne tournant pas en arrière-plan, cette cloche remplace un envoi automatique par e-mail ou WhatsApp qui n'aurait pas pu être garanti sans serveur permanent.",
     ],
   },
   {
@@ -73,6 +88,7 @@ const SECTIONS = [
       "Le rythme auquel vous préférez passer vos commandes (tous les jours, tous les 10 jours, ou une fois par mois).",
       "Le niveau de service que vous souhaitez pour chaque catégorie de produit — plus il est élevé, moins vous risquez la rupture, mais plus vous immobilisez de stock.",
       "Un plafond de budget (en FCFA) pour vos commandes, si vous voulez limiter ce que vous dépensez à chaque fois — laissez-le vide pour ne rien limiter.",
+      "Tout en bas, une \"Zone dangereuse\" : un bouton pour effacer absolument toutes les données de l'officine et repartir de zéro (utile pour une démo ou un nouveau client) — votre compte reste actif, seules les données métier disparaissent. À utiliser avec précaution, cette action est irréversible.",
     ],
   },
 ]
