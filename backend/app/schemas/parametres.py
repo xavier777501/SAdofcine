@@ -34,3 +34,8 @@ class ParametreOfficineUpdate(BaseModel):
     # Optionnel : vide/absent = pas de plafond (section 6.7). Peut être remis à
     # None explicitement pour désactiver le plafond une fois configuré.
     plafond_commande_fcfa: Optional[float] = Field(default=None, ge=0)
+
+
+class ReinitialisationRequest(BaseModel):
+    """Mot de passe requis pour confirmer une réinitialisation complète (irréversible)."""
+    mot_de_passe: str

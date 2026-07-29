@@ -24,6 +24,26 @@ export async function updateDelaiCircuit(circuit, { dlMoyJours, dlMaxJours }) {
   return data
 }
 
+export async function reinitialiserDonnees(motDePasse) {
+  const { data } = await api.post('/parametres/reinitialiser', { mot_de_passe: motDePasse })
+  return data
+}
+
+export async function reinitialiserHistorique(motDePasse) {
+  const { data } = await api.post('/parametres/reinitialiser-historique', { mot_de_passe: motDePasse })
+  return data
+}
+
+export async function reinitialiserStock(motDePasse) {
+  const { data } = await api.post('/parametres/reinitialiser-stock', { mot_de_passe: motDePasse }, { timeout: 120000 })
+  return data
+}
+
+export async function reinitialiserJournal(motDePasse) {
+  const { data } = await api.post('/parametres/reinitialiser-journal', { mot_de_passe: motDePasse })
+  return data
+}
+
 export const CYCLE_OPTIONS = [
   { value: 1, label: 'Journalière (tous les jours)' },
   { value: 10, label: 'Par décade (tous les 10 jours)' },

@@ -3,11 +3,16 @@ import { Link } from 'react-router-dom'
 import PageHeader from '../components/PageHeader'
 import AlerteStrategique from '../components/AlerteStrategique'
 import { getListeAction, getANePasCommander } from '../services/dashboard'
+import { getEtatImport } from '../services/imports'
 import { marquerDirection } from '../services/pageTransition'
 
 function formatFCFA(val) {
   if (!val && val !== 0) return '—'
   return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(val) + ' FCFA'
+}
+
+function formatNb(val) {
+  return new Intl.NumberFormat('fr-FR').format(val ?? 0)
 }
 
 const STATUT_CFG = {
@@ -19,14 +24,16 @@ const STATUT_CFG = {
 export default function DecisionsCommande() {
   const [aCommander, setACommander] = useState([])
   const [neSourcePasCommander, setNePasCommander] = useState([])
+  const [etatImport, setEtatImport] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [recherche, setRecherche] = useState('')
 
   const charger = useCallback(() => {
-    return Promise.all([getListeAction(), getANePasCommander()])
-      .then(([liste, nePasCommander]) => {
+    return Promise.all([getListeAction(), getANePasCommander(), getEtatImport().catch(() => null)])
+      .then(([liste, nePasCommander, etatImport]) => {
         setACommander(liste)
         setNePasCommander(nePasCommander)
+        setEtatImport(etatImport)
       })
       .catch(() => {
         setACommander([])
@@ -71,6 +78,18 @@ export default function DecisionsCommande() {
       </div>
 
       {chargement && <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>}
+
+      {!chargement && etatImport?.mode_commande_ciblee && (
+        <div className="rounded-xl bg-info-light dark:bg-info/10 border border-info/30 px-5 py-4">
+          <p className="text-sm font-semibold text-info">
+            Mode ciblé actif — "À commander en priorité" ne montre que les {formatNb(etatImport.nb_dans_dernier_import)}{' '}
+            références de votre dernier import "Préparer ma commande"
+          </p>
+          <p className="mt-1 text-xs text-info/90">
+            L'encart ci-dessous reste sur l'ensemble du catalogue, volontairement — voir l'Aide pour le détail.
+          </p>
+        </div>
+      )}
 
       {!chargement && (
         <>

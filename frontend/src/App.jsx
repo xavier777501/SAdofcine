@@ -11,6 +11,7 @@ import ResumeCommandes from './pages/ResumeCommandes'
 import Stock from './pages/Stock'
 import Import from './pages/Import'
 import Reapprovisionnement from './pages/Reapprovisionnement'
+import Rappel from './pages/Rappel'
 import Reglages from './pages/Reglages'
 import Aide from './pages/Aide'
 import NotFound from './pages/NotFound'
@@ -114,6 +115,16 @@ const router = createBrowserRouter([
       <ProtectedRoute>
         <AppShell>
           <Reapprovisionnement />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/rappel',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <Rappel />
         </AppShell>
       </ProtectedRoute>
     ),

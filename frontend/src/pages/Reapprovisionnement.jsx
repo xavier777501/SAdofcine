@@ -2,6 +2,8 @@ import { useState } from 'react'
 import PageHeader from '../components/PageHeader'
 import ImportHistoryTable from '../components/ImportHistoryTable'
 import { runImportReception } from '../services/imports'
+import { reinitialiserStock } from '../services/parametres'
+import ReinitialisationBouton from '../components/ReinitialisationBouton'
 
 export default function Reapprovisionnement() {
   const [fichier, setFichier] = useState(null)
@@ -140,6 +142,15 @@ export default function Reapprovisionnement() {
       </div>
 
       <ImportHistoryTable key={resultat?.id || 'aucun'} />
+
+      <div className="flex justify-center">
+        <ReinitialisationBouton
+          label="Réinitialiser le stock…"
+          description="Remet le stock actuel à 0 pour toutes vos références, efface le mode ciblé et les sorties de la dernière commande — comme si aucun import de commande ou de réception n'avait jamais été fait. Ne touche pas à l'historique."
+          messageSucces="Stock réinitialisé — refaites un import de commande ou de réception."
+          onConfirmer={reinitialiserStock}
+        />
+      </div>
     </div>
   )
 }

@@ -1,14 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_officine
+from app.api.deps import get_current_officine, get_current_user
 from app.core.database import get_db
+from app.core.security import verify_password
+from app.models.column_mapping import ColumnMapping
+from app.models.commande_validee import CommandeValidee
 from app.models.delai_circuit import DelaiCircuit
+from app.models.import_log import ImportLog
 from app.models.officine import Officine
+from app.models.parametre_officine import ParametreOfficine
 from app.models.reference import Reference
+from app.models.user import User
+from app.models.vente_mensuelle import VenteMensuelle
 from app.schemas.delai_circuit import DelaiCircuitOut, DelaiCircuitUpdate
-from app.schemas.parametres import ParametreOfficineOut, ParametreOfficineUpdate
-from app.services.calcul_officine import calculer_toutes_references, get_or_create_parametres
+from app.schemas.parametres import ParametreOfficineOut, ParametreOfficineUpdate, ReinitialisationRequest
+from app.services.calcul_officine import calculer_toutes_references, get_or_create_parametres, recalculer_apres_commande
 
 router = APIRouter(prefix="/parametres", tags=["Réglages"])
 
@@ -131,3 +138,145 @@ def modifier_delai_circuit(
     db.commit()
     db.refresh(d)
     return DelaiCircuitOut(circuit=d.circuit, dl_moy_jours=d.dl_moy_jours, dl_max_jours=d.dl_max_jours, configure=True)
+
+
+@router.post("/reinitialiser")
+def reinitialiser_donnees_officine(
+    data: ReinitialisationRequest,
+    officine: Officine = Depends(get_current_officine),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Réinitialisation complète et irréversible : efface toutes les données
+    métier de l'officine (références, historique de ventes, imports,
+    réglages, mappages, traçabilité des commandes), pour repartir de zéro —
+    par exemple pour une démo ou un nouveau client sur la même installation.
+
+    Le compte utilisateur et l'officine elle-même sont conservés : la
+    connexion reste valide après la réinitialisation. Le mot de passe est
+    exigé pour confirmer, une action de cette ampleur ne devant jamais
+    pouvoir être déclenchée par erreur (ex. double-clic, script).
+    """
+    if not verify_password(data.mot_de_passe, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mot de passe incorrect.",
+        )
+
+    ref_ids = [r.id for r in db.query(Reference.id).filter(Reference.officine_id == officine.id).all()]
+    if ref_ids:
+        db.query(VenteMensuelle).filter(VenteMensuelle.reference_id.in_(ref_ids)).delete(synchronize_session=False)
+    db.query(Reference).filter(Reference.officine_id == officine.id).delete(synchronize_session=False)
+    db.query(ImportLog).filter(ImportLog.officine_id == officine.id).delete(synchronize_session=False)
+    db.query(ColumnMapping).filter(ColumnMapping.officine_id == officine.id).delete(synchronize_session=False)
+    db.query(DelaiCircuit).filter(DelaiCircuit.officine_id == officine.id).delete(synchronize_session=False)
+    db.query(CommandeValidee).filter(CommandeValidee.officine_id == officine.id).delete(synchronize_session=False)
+    db.query(ParametreOfficine).filter(ParametreOfficine.officine_id == officine.id).delete(synchronize_session=False)
+    db.commit()
+
+    return {"message": "Toutes les données de l'officine ont été réinitialisées."}
+
+
+@router.post("/reinitialiser-historique")
+def reinitialiser_historique(
+    data: ReinitialisationRequest,
+    officine: Officine = Depends(get_current_officine),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Réinitialise uniquement les données issues de l'import Type 1
+    (historique) : CMM/CMMax/sigma/classe ABC/statut FSN/VED et les 12 mois
+    de ventes — comme si aucun import historique n'avait jamais été fait.
+    Ne touche ni au stock actuel, ni aux imports Type 2/3, ni aux réglages.
+    """
+    if not verify_password(data.mot_de_passe, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe incorrect.")
+
+    ref_ids = [r.id for r in db.query(Reference.id).filter(Reference.officine_id == officine.id).all()]
+    if ref_ids:
+        db.query(VenteMensuelle).filter(VenteMensuelle.reference_id.in_(ref_ids)).delete(synchronize_session=False)
+
+    db.query(Reference).filter(Reference.officine_id == officine.id).update(
+        {
+            Reference.cmm: None,
+            Reference.cmmax: None,
+            Reference.sigma: None,
+            Reference.z_service: None,
+            Reference.ss: None,
+            Reference.pc: None,
+            Reference.eoq: None,
+            Reference.ss_periodique: None,
+            Reference.niveau_recompletement: None,
+            Reference.qte_a_commander: None,
+            Reference.statut: None,
+            Reference.couverture_jours: None,
+            Reference.tresorerie_liberee: None,
+            Reference.classe: None,
+            Reference.fsn: None,
+            Reference.ved: None,
+        },
+        synchronize_session=False,
+    )
+    db.commit()
+
+    return {"message": "Historique réinitialisé — refaites vos 12 imports mensuels."}
+
+
+@router.post("/reinitialiser-stock")
+def reinitialiser_stock(
+    data: ReinitialisationRequest,
+    officine: Officine = Depends(get_current_officine),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Réinitialise uniquement le stock issu des imports Type 2 (commande) et
+    Type 3 (réception) : stock actuel remis à 0 pour toutes les références,
+    sorties de la dernière commande effacées, mode ciblé désactivé — comme
+    si aucun import de commande/réception n'avait jamais été fait. Ne touche
+    ni à l'historique (CMM/sigma/classe/FSN/VED), ni aux autres réglages.
+    """
+    if not verify_password(data.mot_de_passe, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe incorrect.")
+
+    db.query(Reference).filter(Reference.officine_id == officine.id).update(
+        {
+            Reference.stock_actuel: 0,
+            Reference.sorties_derniere_commande: None,
+            Reference.dans_dernier_import_commande: False,
+        },
+        synchronize_session=False,
+    )
+
+    params = get_or_create_parametres(officine.id, db)
+    params.mode_commande_ciblee = False
+    db.flush()
+
+    recalculer_apres_commande(officine.id, db)
+    db.commit()
+
+    return {"message": "Stock réinitialisé — refaites un import de commande ou de réception."}
+
+
+@router.post("/reinitialiser-journal")
+def reinitialiser_journal(
+    data: ReinitialisationRequest,
+    officine: Officine = Depends(get_current_officine),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Vide uniquement le tableau "Historique des imports" (journal), pour
+    repartir avec une liste propre à l'écran — n'affecte ni le stock, ni
+    l'historique 12 mois, ni aucun calcul. Réinitialisation "au jour le
+    jour", ponctuelle, la plus légère des trois.
+    """
+    if not verify_password(data.mot_de_passe, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe incorrect.")
+
+    db.query(ImportLog).filter(ImportLog.officine_id == officine.id).delete(synchronize_session=False)
+    db.commit()
+
+    return {"message": "Historique des imports vidé."}

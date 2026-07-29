@@ -429,6 +429,20 @@ export default function ListeAction() {
         </div>
       )}
 
+      {!chargement && etatImport?.mode_commande_ciblee && (
+        <div className="rounded-xl bg-info-light dark:bg-info/10 border border-info/30 px-5 py-4">
+          <p className="text-sm font-semibold text-info">
+            Mode ciblé actif — cette liste ne montre que les {formatNb(etatImport.nb_dans_dernier_import)} références
+            de votre dernier import "Préparer ma commande"
+          </p>
+          <p className="mt-1 text-xs text-info/90">
+            Les autres références de votre catalogue ne sont pas prises en compte ici (elles restent visibles dans
+            l'encart d'alerte). Décochez "Limiter cette commande aux références importées" au prochain import pour
+            revenir à la liste complète.
+          </p>
+        </div>
+      )}
+
       <div className="relative w-full sm:w-80">
         <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
           <path d="M17.5 17.5l-4.167-4.167M14.167 8.333a5.833 5.833 0 1 1-11.667 0 5.833 5.833 0 0 1 11.667 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>

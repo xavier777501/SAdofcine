@@ -86,10 +86,25 @@ def get_etat_import(
         is not None
     )
 
+    # Section 4ter : pour que l'interface puisse signaler clairement que la
+    # liste affichée est restreinte au dernier import de commande, plutôt
+    # que de laisser le pharmacien deviner pourquoi elle est plus courte.
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+    mode_commande_ciblee = params.mode_commande_ciblee
+    nb_dans_dernier_import = (
+        db.query(Reference)
+        .filter(Reference.officine_id == officine.id, Reference.dans_dernier_import_commande.is_(True))
+        .count()
+        if mode_commande_ciblee else 0
+    )
+
     return {
         "historique_initialise": historique_initialise,
         "nb_mois_historique": nb_mois_historique,
         "stock_initialise": stock_initialise,
+        "mode_commande_ciblee": mode_commande_ciblee,
+        "nb_dans_dernier_import": nb_dans_dernier_import,
     }
 
 

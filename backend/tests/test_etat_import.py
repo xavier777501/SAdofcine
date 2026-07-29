@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.reference import Reference
 from app.models.vente_mensuelle import VenteMensuelle
 from app.models.import_log import ImportLog
+from app.models.parametre_officine import ParametreOfficine
 
 
 @pytest.fixture(autouse=True)
@@ -174,3 +175,40 @@ class TestStockInitialise:
         headers = {"Authorization": f"Bearer {token}"}
         response = client.get("/api/v1/imports/etat", headers=headers)
         assert response.json()["stock_initialise"] is False
+
+
+class TestModeCommandeCiblee:
+    """
+    Section 4ter : l'interface doit pouvoir signaler que la liste affichée
+    est restreinte au dernier import de commande, plutôt que de laisser le
+    pharmacien deviner pourquoi elle est plus courte que d'habitude.
+    """
+
+    def test_mode_inactif_par_defaut(self, client, token):
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        body = response.json()
+        assert body["mode_commande_ciblee"] is False
+        assert body["nb_dans_dernier_import"] == 0
+
+    def test_mode_actif_compte_les_references_du_dernier_import(self, client, token, db_session, officine):
+        db_session.add(ParametreOfficine(officine_id=officine.id, mode_commande_ciblee=True))
+        db_session.add(Reference(
+            officine_id=officine.id, code="A001", designation="Doliprane",
+            dans_dernier_import_commande=True,
+        ))
+        db_session.add(Reference(
+            officine_id=officine.id, code="A002", designation="Efferalgan",
+            dans_dernier_import_commande=True,
+        ))
+        db_session.add(Reference(
+            officine_id=officine.id, code="A003", designation="Autre référence, pas dans l'import",
+            dans_dernier_import_commande=False,
+        ))
+        db_session.commit()
+
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.get("/api/v1/imports/etat", headers=headers)
+        body = response.json()
+        assert body["mode_commande_ciblee"] is True
+        assert body["nb_dans_dernier_import"] == 2

@@ -20,6 +20,8 @@ import {
   CHAMPS_OBLIGATOIRES,
 } from '../services/imports'
 import { lancerCalcul } from '../services/calcul'
+import { reinitialiserHistorique, reinitialiserStock } from '../services/parametres'
+import ReinitialisationBouton from '../components/ReinitialisationBouton'
 
 const NOMS_MOIS_AFFICHAGE = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -690,6 +692,15 @@ export default function Import() {
                 Voir le tableau de bord
               </button>
             </div>
+
+            <div className="pt-2">
+              <ReinitialisationBouton
+                label="Réinitialiser l'historique…"
+                description="Efface CMM, classe ABC, statut FSN et VED, et les 12 mois de ventes de toutes vos références — comme si aucun import historique n'avait jamais été fait. Ne touche pas au stock actuel."
+                messageSucces="Historique réinitialisé — refaites vos imports mensuels ci-dessus."
+                onConfirmer={reinitialiserHistorique}
+              />
+            </div>
           </div>
         )}
 
@@ -735,6 +746,15 @@ export default function Import() {
             >
               ← Retour
             </button>
+
+            <div className="mt-6 flex justify-center">
+              <ReinitialisationBouton
+                label="Réinitialiser le stock…"
+                description="Remet le stock actuel à 0 pour toutes vos références, efface le mode ciblé et les sorties de la dernière commande — comme si aucun import de commande ou de réception n'avait jamais été fait. Ne touche pas à l'historique."
+                messageSucces="Stock réinitialisé — refaites un import de commande ou de réception."
+                onConfirmer={reinitialiserStock}
+              />
+            </div>
           </div>
         )}
 

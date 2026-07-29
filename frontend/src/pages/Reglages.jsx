@@ -4,7 +4,103 @@ import FormField from '../components/FormField'
 import SubmitButton from '../components/SubmitButton'
 import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../services/auth'
-import { getParametres, updateParametres, getCircuits, updateDelaiCircuit, CYCLE_OPTIONS } from '../services/parametres'
+import { getParametres, updateParametres, getCircuits, updateDelaiCircuit, reinitialiserDonnees, CYCLE_OPTIONS } from '../services/parametres'
+
+function ZoneDangereuse() {
+  const [ouvert, setOuvert] = useState(false)
+  const [motDePasse, setMotDePasse] = useState('')
+  const [confirme, setConfirme] = useState(false)
+  const [enCours, setEnCours] = useState(false)
+  const [erreur, setErreur] = useState('')
+  const [termine, setTermine] = useState(false)
+
+  async function handleReinitialiser() {
+    setErreur('')
+    setEnCours(true)
+    try {
+      await reinitialiserDonnees(motDePasse)
+      setTermine(true)
+    } catch (err) {
+      setErreur(getErrorMessage(err, 'Impossible de réinitialiser — vérifiez votre mot de passe.'))
+    } finally {
+      setEnCours(false)
+    }
+  }
+
+  if (termine) {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-danger/30 p-6">
+        <p className="text-sm font-semibold text-danger">Toutes les données ont été réinitialisées.</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Rechargez l'application pour repartir de zéro avec un nouvel import.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-danger/30 p-6">
+      <p className="text-sm font-semibold text-danger">Zone dangereuse</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Efface définitivement toutes les références, l'historique de ventes, les imports et les réglages de cette
+        officine — utile pour repartir de zéro (démo, nouveau client). Votre compte reste actif, seules les données
+        métier sont supprimées. Cette action est irréversible.
+      </p>
+
+      {!ouvert ? (
+        <button
+          type="button"
+          onClick={() => setOuvert(true)}
+          className="tg-tap mt-4 rounded-lg border border-danger text-danger px-4 py-2 text-sm font-semibold hover:bg-danger-light dark:hover:bg-danger/10 transition-colors"
+        >
+          Réinitialiser toutes les données…
+        </button>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {erreur && <p className="text-xs text-danger">{erreur}</p>}
+          <div>
+            <label htmlFor="reinit_password" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Confirmez avec votre mot de passe
+            </label>
+            <input
+              id="reinit_password"
+              type="password"
+              value={motDePasse}
+              onChange={(e) => setMotDePasse(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-danger"
+            />
+          </div>
+          <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={confirme}
+              onChange={(e) => setConfirme(e.target.checked)}
+              className="mt-0.5"
+            />
+            Je comprends que cette action est irréversible et que toutes les données seront perdues.
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleReinitialiser}
+              disabled={!motDePasse || !confirme || enCours}
+              className="tg-tap rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {enCours ? 'Réinitialisation…' : 'Réinitialiser définitivement'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setOuvert(false); setMotDePasse(''); setConfirme(false); setErreur('') }}
+              className="tg-tap rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function versFormulaire(params) {
   return {
@@ -365,6 +461,8 @@ export default function Reglages() {
             </div>
           </div>
         )}
+
+        <ZoneDangereuse />
     </div>
   )
 }

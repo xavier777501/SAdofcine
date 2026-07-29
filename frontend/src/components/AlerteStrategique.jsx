@@ -74,7 +74,7 @@ export default function AlerteStrategique() {
       </div>
 
       <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 divide-y divide-danger/10 max-h-56 overflow-y-auto">
-        {alertes.references.map((ref) => (
+        {alertes.references.slice(0, 30).map((ref) => (
           <div key={ref.id} className="flex items-center justify-between gap-3 px-3.5 py-2 text-sm">
             <div className="min-w-0">
               <p className="font-medium text-slate-800 dark:text-slate-200 truncate">{ref.designation}</p>
@@ -86,6 +86,11 @@ export default function AlerteStrategique() {
           </div>
         ))}
       </div>
+      {alertes.references.length > 30 && (
+        <p className="text-xs text-danger/80">
+          + {alertes.references.length - 30} autre{alertes.references.length - 30 > 1 ? 's' : ''} référence{alertes.references.length - 30 > 1 ? 's' : ''} — voir la liste d'action pour le détail complet.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="group relative inline-flex items-center gap-1.5">

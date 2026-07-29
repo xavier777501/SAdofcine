@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { getImportHistory } from '../services/imports'
+import { reinitialiserJournal } from '../services/parametres'
+import ReinitialisationBouton from './ReinitialisationBouton'
 
 const STATUT_STYLES = {
   succes: 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand border-brand/30',
@@ -21,16 +23,29 @@ export default function ImportHistoryTable() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const charger = useCallback(() => {
     getImportHistory()
       .then(setHistory)
       .catch(() => setHistory([]))
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => { charger() }, [charger])
+
   return (
     <section>
-      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Historique des imports</h2>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Historique des imports</h2>
+        {!loading && history.length > 0 && (
+          <ReinitialisationBouton
+            label="Vider l'historique…"
+            description="Vide uniquement ce tableau — n'affecte ni le stock, ni l'historique 12 mois, ni aucun calcul."
+            messageSucces="Historique vidé."
+            onConfirmer={reinitialiserJournal}
+            onSucces={charger}
+          />
+        )}
+      </div>
       {loading ? (
         <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
       ) : history.length === 0 ? (

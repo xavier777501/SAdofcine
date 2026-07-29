@@ -5,6 +5,7 @@ import { marquerDirection } from '../services/pageTransition'
 import Logo from './Logo'
 import ThemeToggle from './ThemeToggle'
 import ConfirmDialog from './ConfirmDialog'
+import ClocheAlertes from './ClocheAlertes'
 
 const NAV_ITEMS = [
   {
@@ -181,6 +182,8 @@ export default function AppShell({ children }) {
           <span className="brand-name text-xl leading-none text-white">StockAid</span>
           <span className="text-[11px] text-slate-400">Gestion de stock pharmacie</span>
         </div>
+
+        <ClocheAlertes currentPath={location.pathname} />
 
         <nav className="flex-1 px-3 mt-2 space-y-1">
           {NAV_ITEMS.map((item) => (
