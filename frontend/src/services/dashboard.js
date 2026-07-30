@@ -45,12 +45,29 @@ export async function getHistoriqueCommandes() {
   return data
 }
 
-export async function exportListe(format, statut) {
-  const { data } = await api.get('/dashboard/export', {
-    params: statut && statut !== 'TOUS' ? { format, statut } : { format },
-    responseType: 'blob',
-  })
-  const suffixe = statut && statut !== 'TOUS' ? `_${statut.toLowerCase()}` : ''
+/**
+ * `filtres.statut`/`filtres.classe`/`filtres.recherche` (tous optionnels) :
+ * doivent refléter exactement les onglets/filtres actifs à l'écran au
+ * moment du clic, sinon le fichier téléchargé ne correspond pas à ce que
+ * le pharmacien regarde (ex. il est sur l'onglet "Rupture" mais reçoit
+ * toutes les références).
+ */
+export async function exportListe(format, { statut, classe, recherche } = {}) {
+  const params = { format }
+  const suffixeParts = []
+  if (statut && statut !== 'TOUS') {
+    params.statut = statut
+    suffixeParts.push(statut.toLowerCase())
+  }
+  if (classe && classe !== 'TOUS') {
+    params.classe = classe
+    suffixeParts.push(`classe${classe.toLowerCase()}`)
+  }
+  if (recherche && recherche.trim()) {
+    params.recherche = recherche.trim()
+  }
+  const suffixe = suffixeParts.length > 0 ? `_${suffixeParts.join('_')}` : ''
+  const { data } = await api.get('/dashboard/export', { params, responseType: 'blob' })
   const url = URL.createObjectURL(data)
   const a = document.createElement('a')
   a.href = url

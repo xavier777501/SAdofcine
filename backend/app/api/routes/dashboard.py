@@ -40,29 +40,35 @@ CLASSE_ORDRE = {"A": 0, "B": 1, "C": 2}
 def _lignes_action(officine_id, db: Session, filtrer_dans_import: bool = False) -> list[dict]:
     """
     Construit la liste d'action triée par urgence.
-    `filtrer_dans_import` (section 4ter, Mode 2 "commande ciblée") : ne
-    restreint que le périmètre de cette liste, jamais l'historique ni les
-    calculs — donc jamais utilisé pour l'encart 7.0 (alertes stratégiques).
+    `filtrer_dans_import` (section 4ter, Mode 2 "commande ciblée") : montre
+    TOUTES les références du dernier import de commande, actionnables ou non
+    — le pharmacien voit l'état complet de son fichier, pas seulement ce qui
+    manque, sinon le nombre affiché ne correspond jamais à celui du fichier
+    importé et laisse croire à tort que le mode ciblé ne fonctionne pas.
+    Jamais utilisé pour l'encart 7.0 (alertes stratégiques), qui reste sur
+    l'historique complet quel que soit ce réglage.
     """
     statut_actionnable = Reference.statut.in_(["RUPTURE", "CRITIQUE", "COMMANDER"])
     conditions = [Reference.officine_id == officine_id]
     if filtrer_dans_import:
         # Une inclusion manuelle est une garantie explicite du pharmacien :
-        # elle passe toujours, même hors périmètre ciblé (section 4ter) —
-        # seules les références actionnables "normales" sont restreintes au
-        # fichier importé.
+        # elle passe toujours, même hors périmètre ciblé (section 4ter).
         conditions.append(or_(
             Reference.inclusion_manuelle == "inclure",
-            statut_actionnable & Reference.dans_dernier_import_commande.is_(True),
+            Reference.dans_dernier_import_commande.is_(True),
         ))
     else:
         conditions.append(or_(statut_actionnable, Reference.inclusion_manuelle == "inclure"))
 
     refs = db.query(Reference).filter(*conditions).all()
 
-    # US-D8 : une référence Non-moving non Vitale a sa quantité neutralisée à 0
-    # et n'a donc rien à faire dans la liste d'action (section 7 du cahier des charges).
-    refs = [r for r in refs if not (r.fsn == "Non-moving" and r.ved != "Vital")]
+    # US-D8 : hors mode ciblé, une Non-moving non Vitale a sa quantité
+    # neutralisée à 0 et n'a donc rien à faire dans la liste (section 7) —
+    # elle est retirée. En mode ciblé, elle reste visible (le pharmacien voit
+    # tout son fichier importé) mais son statut affiché passe à OK plus bas,
+    # puisque sa quantité à commander est neutralisée à 0.
+    if not filtrer_dans_import:
+        refs = [r for r in refs if not (r.fsn == "Non-moving" and r.ved != "Vital")]
 
     # Section 6.7 : le pharmacien garde toujours la main — une exclusion
     # manuelle retire la référence de la liste, quel que soit son statut.
@@ -83,9 +89,27 @@ def _lignes_action(officine_id, db: Session, filtrer_dans_import: bool = False) 
 
     lignes = []
     for r in refs:
-        qte_auto = r.qte_a_commander or 0.0
+        # Neutralisée (US-D8) : sa quantité auto est déjà à 0 en base, mais
+        # son statut brut peut encore dire RUPTURE/CRITIQUE — affiché tel
+        # quel ce serait incohérent ("Rupture" avec 0 unité à commander), on
+        # l'affiche donc comme OK ici, uniquement pour ce périmètre ciblé.
+        neutralisee = filtrer_dans_import and r.fsn == "Non-moving" and r.ved != "Vital"
+        statut_affiche = "OK" if neutralisee else (r.statut or "OK")
+
+        qte_auto = 0.0 if neutralisee else (r.qte_a_commander or 0.0)
         qte = r.qte_a_commander_override if r.qte_a_commander_override is not None else qte_auto
         valeur = qte * (r.prix_cession or 0.0)
+
+        if statut_affiche not in ("RUPTURE", "CRITIQUE", "COMMANDER"):
+            if r.inclusion_manuelle == "inclure":
+                texte = "Ajouté manuellement à la commande par le pharmacien."
+            elif neutralisee:
+                texte = "Produit non-mouvant — aucune commande nécessaire, même si le stock semble bas."
+            else:
+                texte = "Stock suffisant — rien à commander pour l'instant."
+        else:
+            texte = generer_texte(statut_affiche, r.ved, r.fsn)
+
         lignes.append({
             "id":            str(r.id),
             "code":          r.code,
@@ -97,17 +121,13 @@ def _lignes_action(officine_id, db: Session, filtrer_dans_import: bool = False) 
             "cmm":           r.cmm or 0.0,
             "vente_m1":      ventes_m1.get(str(r.id), 0.0),
             "sorties_derniere_commande": r.sorties_derniere_commande,
-            "statut":        r.statut,
+            "statut":        statut_affiche,
             "qte_a_commander": qte,
             "qte_a_commander_auto": qte_auto,
             "qte_a_commander_override": r.qte_a_commander_override,
             "inclusion_manuelle": r.inclusion_manuelle,
             "valeur_fcfa":   valeur,
-            "texte_decision": (
-                "Ajouté manuellement à la commande par le pharmacien."
-                if r.inclusion_manuelle == "inclure" and r.statut not in ("RUPTURE", "CRITIQUE", "COMMANDER")
-                else generer_texte(r.statut, r.ved, r.fsn)
-            ),
+            "texte_decision": texte,
         })
 
     # Section 7.1 (V7) : à l'intérieur d'un même statut, tri secondaire par
@@ -197,7 +217,11 @@ def get_kpis(
     plafonnee = prioriser_et_plafonner(actionnables, params.plafond_commande_fcfa)
     valeur = plafonnee["budget_utilise"] + sum(l["valeur_fcfa"] for l in plafonnee["hors_plafond"])
 
-    tresorerie = sum(r.tresorerie_liberee or 0.0 for r in refs)
+    # Même périmètre que "À ne pas commander" (section 4ter) : sinon cette
+    # tuile annoncerait un montant que cette liste ne détaille pas, les deux
+    # écrans se contrediraient (même raison que le plafond budgétaire ci-dessus).
+    refs_tresorerie = [r for r in refs if r.dans_dernier_import_commande] if params.mode_commande_ciblee else refs
+    tresorerie = sum(r.tresorerie_liberee or 0.0 for r in refs_tresorerie)
 
     return KpisOut(
         nb_references=len(refs),
@@ -321,8 +345,18 @@ def get_a_ne_pas_commander(
     Triée par montant immobilisé décroissant : les plus gros freins de trésorerie
     d'abord (section 7 du cahier des charges — argument "trésorerie libérée",
     ici détaillé référence par référence plutôt qu'en un seul total agrégé).
+
+    Section 4ter : en mode "commande ciblée", restreinte comme le reste de
+    l'écran aux références du dernier import de commande — pour rester
+    cohérente avec "À commander en priorité" plutôt que de mélanger deux
+    périmètres différents sur le même écran.
     """
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+
     refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
+    if params.mode_commande_ciblee:
+        refs = [r for r in refs if r.dans_dernier_import_commande]
 
     # Déjà dans la liste d'action (à commander) : ne peut pas aussi être "à ne pas commander".
     refs = [r for r in refs if r.statut not in ("RUPTURE", "CRITIQUE", "COMMANDER")]
@@ -383,7 +417,9 @@ def get_commande_plafonnee(
 @router.get("/export")
 def export_liste_action(
     format: str = Query(..., pattern="^(pdf|xlsx)$"),
-    statut: str | None = Query(None, pattern="^(RUPTURE|CRITIQUE|COMMANDER)$"),
+    statut: str | None = Query(None, pattern="^(RUPTURE|CRITIQUE|COMMANDER|OK)$"),
+    classe: str | None = Query(None, pattern="^(A|B|C)$"),
+    recherche: str | None = Query(None),
     officine: Officine = Depends(get_current_officine),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -391,17 +427,27 @@ def export_liste_action(
     """
     Exporte la liste d'action en PDF ou XLSX.
     Usage : GET /dashboard/export?format=pdf  ou  ?format=xlsx
-    `statut` (optionnel) : n'exporte que les références de cet onglet
-    (Rupture/Critique/Commander) — doit refléter le filtre actif à l'écran,
-    sinon l'export ne correspond pas à ce que le pharmacien regarde.
+    `statut`, `classe`, `recherche` (tous optionnels) : doivent refléter
+    exactement les onglets/filtres actifs à l'écran au moment du clic
+    (onglet de statut, onglet de classe ABC, barre de recherche) — sinon le
+    fichier téléchargé ne correspond pas à ce que le pharmacien regarde.
     """
     params = get_or_create_parametres(officine.id, db)
     db.commit()
     lignes = _lignes_action(officine.id, db, filtrer_dans_import=params.mode_commande_ciblee)
     if statut:
         lignes = [l for l in lignes if l["statut"] == statut]
+    if classe:
+        lignes = [l for l in lignes if l["classe"] == classe]
+    if recherche:
+        q = recherche.strip().lower()
+        lignes = [
+            l for l in lignes
+            if q in (l["code"] or "").lower() or q in (l["designation"] or "").lower()
+        ]
     nom = officine.nom
-    suffixe = f"_{statut.lower()}" if statut else ""
+    suffixe_parts = [p for p in (statut.lower() if statut else None, f"classe{classe.lower()}" if classe else None) if p]
+    suffixe = f"_{'_'.join(suffixe_parts)}" if suffixe_parts else ""
 
     # Section 7.3 : chaque export est le moment où le pharmacien consulte la
     # liste avant de passer sa commande — on l'enregistre comme "commande

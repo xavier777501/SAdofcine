@@ -47,12 +47,17 @@ export default function DecisionsCommande() {
   const q = recherche.trim().toLowerCase()
   const correspond = (l) => l.code?.toLowerCase().includes(q) || l.designation?.toLowerCase().includes(q)
 
+  // En mode ciblé (section 4ter), getListeAction() inclut désormais aussi
+  // les références du fichier importé qui n'ont rien à commander (statut
+  // OK) — cette section reste centrée sur ce qui est réellement à faire.
+  const actionnables = aCommander.filter((l) => l.statut === 'RUPTURE' || l.statut === 'CRITIQUE' || l.statut === 'COMMANDER')
+
   // Sans recherche : les 8 plus urgentes, comme d'habitude. Avec une
   // recherche, on montre tous les résultats correspondants — plus utile que
   // de rester limité aux 8 premiers pendant qu'on cherche un produit précis.
   const urgents = q
     ? aCommander.filter(correspond)
-    : aCommander.filter((l) => l.statut === 'RUPTURE' || l.statut === 'CRITIQUE').slice(0, 8)
+    : actionnables.filter((l) => l.statut === 'RUPTURE' || l.statut === 'CRITIQUE').slice(0, 8)
   const nePasCommanderFiltre = q ? neSourcePasCommander.filter(correspond) : neSourcePasCommander
   const totalImmobilise = neSourcePasCommander.reduce((s, l) => s + (l.tresorerie_immobilisee || 0), 0)
 
@@ -82,11 +87,12 @@ export default function DecisionsCommande() {
       {!chargement && etatImport?.mode_commande_ciblee && (
         <div className="rounded-xl bg-info-light dark:bg-info/10 border border-info/30 px-5 py-4">
           <p className="text-sm font-semibold text-info">
-            Mode ciblé actif — "À commander en priorité" ne montre que les {formatNb(etatImport.nb_dans_dernier_import)}{' '}
-            références de votre dernier import "Préparer ma commande"
+            Mode ciblé actif — "À commander en priorité" et "À ne pas commander" ne recherchent que parmi les{' '}
+            {formatNb(etatImport.nb_dans_dernier_import)} références de votre dernier import "Préparer ma commande"
           </p>
           <p className="mt-1 text-xs text-info/90">
-            L'encart ci-dessous reste sur l'ensemble du catalogue, volontairement — voir l'Aide pour le détail.
+            L'encart rouge d'alertes stratégiques ci-dessous reste sur l'ensemble du catalogue, volontairement — voir
+            l'Aide pour le détail.
           </p>
         </div>
       )}
@@ -113,7 +119,7 @@ export default function DecisionsCommande() {
               </Link>
             </div>
 
-            {aCommander.length === 0 ? (
+            {actionnables.length === 0 ? (
               <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">Rien à commander pour l'instant.</p>
             ) : urgents.length === 0 ? (
               <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">Aucun résultat pour cette recherche.</p>
@@ -133,9 +139,9 @@ export default function DecisionsCommande() {
                     </div>
                   )
                 })}
-                {!q && aCommander.length > urgents.length && (
+                {!q && actionnables.length > urgents.length && (
                   <p className="text-xs text-slate-400 dark:text-slate-500 pt-1">
-                    + {aCommander.length - urgents.length} autre{aCommander.length - urgents.length > 1 ? 's' : ''} référence{aCommander.length - urgents.length > 1 ? 's' : ''} à commander — voir la liste complète.
+                    + {actionnables.length - urgents.length} autre{actionnables.length - urgents.length > 1 ? 's' : ''} référence{actionnables.length - urgents.length > 1 ? 's' : ''} à commander — voir la liste complète.
                   </p>
                 )}
               </div>

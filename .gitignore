@@ -24,6 +24,12 @@ frontend/.env.production
 
 # --- Desktop (Electron) — packaging exploratoire, pas encore partagé ---
 electron/
+# Si electron/ est un jour retiré de l'ignore ci-dessus pour être partagé,
+# ces fichiers doivent rester exclus quand même (secret SMTP Brevo) :
+electron/.env
+electron/node_modules/
+electron/release/
+electron/build/
 
 # --- IDE ---
 .vscode/
@@ -43,6 +49,8 @@ logs/
 
 # --- Base de données locale ---
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 

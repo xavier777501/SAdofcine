@@ -17,8 +17,9 @@ const STATUT_CFG = {
   RUPTURE:   { bg: 'bg-danger-light dark:bg-danger/10',   text: 'text-danger',                    badge: 'bg-danger text-white',                        label: 'Rupture' },
   CRITIQUE:  { bg: 'bg-orange-50 dark:bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-500 text-white',               label: 'Critique' },
   COMMANDER: { bg: 'bg-yellow-50 dark:bg-yellow-500/10', text: 'text-yellow-700 dark:text-yellow-400', badge: 'bg-yellow-400 dark:bg-yellow-500 text-slate-900', label: 'Commander' },
-  // Référence ajoutée manuellement à la commande (section 6.7) alors que son statut réel est OK.
-  OK:        { bg: 'bg-brand-light dark:bg-brand/10',    text: 'text-brand-dark dark:text-brand', badge: 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand', label: 'Ajout manuel' },
+  // OK : soit ajoutée manuellement (section 6.7) alors que son statut réel est OK, soit — en
+  // mode ciblé (section 4ter) — une référence du fichier importé qui n'a rien à commander.
+  OK:        { bg: 'bg-brand-light dark:bg-brand/10',    text: 'text-brand-dark dark:text-brand', badge: 'bg-brand-light dark:bg-brand/10 text-brand-dark dark:text-brand', label: 'OK' },
 }
 
 const CLASSE_CFG = {
@@ -364,9 +365,18 @@ export default function ListeAction() {
   const plafondActif = plafond && !plafond.sans_restriction
   const stockNonInitialise = etatImport?.historique_initialise && !etatImport?.stock_initialise
 
+  // L'export doit refléter exactement ce que le pharmacien voit à l'écran à
+  // l'instant du clic (onglet de statut, onglet de classe, recherche) —
+  // sinon le fichier téléchargé ne correspond pas à l'onglet affiché.
   async function handleExport(format) {
     setExportEnCours(format)
-    try { await exportListe(format, filtreStatut) } catch { /* silencieux */ } finally { setExportEnCours(null) }
+    try {
+      await exportListe(format, { statut: filtreStatut, classe: filtreClasse, recherche })
+    } catch {
+      /* silencieux */
+    } finally {
+      setExportEnCours(null)
+    }
   }
 
   async function handleAjuster(id, { qteOverride, inclusionManuelle }) {
@@ -406,6 +416,13 @@ export default function ListeAction() {
   const listeFiltre = filtrerParRecherche(filtrerParClasse(
     filtreStatut === 'TOUS' ? liste : liste.filter(l => l.statut === filtreStatut)
   ))
+  // Mode ciblé (section 4ter) : la liste inclut aussi les références du
+  // fichier importé qui n'ont rien à commander (statut OK) — le chiffre
+  // total ne doit alors plus laisser croire que tout est "à traiter".
+  const nbOk = liste.filter(l => l.statut === 'OK').length
+  const statutsDisponibles = nbOk > 0
+    ? ['TOUS', 'RUPTURE', 'CRITIQUE', 'COMMANDER', 'OK']
+    : ['TOUS', 'RUPTURE', 'CRITIQUE', 'COMMANDER']
   const enAttenteFiltre = filtrerParRecherche(enAttente)
 
   return (
@@ -432,8 +449,8 @@ export default function ListeAction() {
       {!chargement && etatImport?.mode_commande_ciblee && (
         <div className="rounded-xl bg-info-light dark:bg-info/10 border border-info/30 px-5 py-4">
           <p className="text-sm font-semibold text-info">
-            Mode ciblé actif — cette liste ne montre que les {formatNb(etatImport.nb_dans_dernier_import)} références
-            de votre dernier import "Préparer ma commande"
+            Mode ciblé actif — cette liste montre les {formatNb(etatImport.nb_dans_dernier_import)} références
+            de votre dernier import "Préparer ma commande", y compris celles marquées OK qui n'ont rien à commander
           </p>
           <p className="mt-1 text-xs text-info/90">
             Les autres références de votre catalogue ne sont pas prises en compte ici (elles restent visibles dans
@@ -593,13 +610,14 @@ export default function ListeAction() {
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-4 flex-wrap">
               <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                {liste.length} référence{liste.length > 1 ? 's' : ''} à traiter
+                {liste.length} référence{liste.length > 1 ? 's' : ''}
+                {nbOk > 0 ? ` (dont ${formatNb(liste.length - nbOk)} à traiter)` : ' à traiter'}
               </p>
               <FiltreClasse valeur={filtreClasse} onChange={setFiltreClasse} options={liste} />
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {['TOUS', 'RUPTURE', 'CRITIQUE', 'COMMANDER'].map(s => {
+              {statutsDisponibles.map(s => {
                 const cfg = STATUT_CFG[s]
                 const actif = filtreStatut === s
                 return (

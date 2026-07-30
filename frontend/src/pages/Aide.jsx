@@ -28,8 +28,8 @@ const SECTIONS = [
     texte: [
       "Une barre de recherche en haut vous permet de retrouver un produit précis directement, sans passer par la liste complète.",
       "Un encart rouge signale vos produits importants (vos plus gros vendeurs) qui sont en rupture ou presque et que vous risquez de rater. Il estime ce que ça vous coûte de ne pas les commander, et un bouton vous permet de les ajouter directement à votre liste de commande. Cet encart montre toujours tout votre catalogue, même si vous utilisez le mode \"commande ciblée\" à l'import — il ne doit jamais vous faire rater un produit important.",
-      "En dessous, d'un côté les produits à commander en priorité — un raccourci vers la liste d'action complète. Si le mode ciblé est actif, un bandeau bleu vous le rappelle : cette section ne montre alors que les produits de votre dernier import de commande.",
-      "De l'autre, les produits qu'il ne faut surtout pas recommander maintenant : soit parce que vous en avez déjà plus que nécessaire, soit parce qu'ils ne se vendent presque plus. Chaque ligne indique le montant d'argent immobilisé inutilement sur ce produit.",
+      "En dessous, d'un côté les produits à commander en priorité — un raccourci vers la liste d'action complète. Si le mode ciblé est actif, un bandeau bleu vous le rappelle : cette section ne recherche alors que parmi les produits de votre dernier import de commande.",
+      "De l'autre, les produits qu'il ne faut surtout pas recommander maintenant : soit parce que vous en avez déjà plus que nécessaire, soit parce qu'ils ne se vendent presque plus. Chaque ligne indique le montant d'argent immobilisé inutilement sur ce produit. Elle suit le même mode ciblé que la section précédente — restreinte à votre dernier import de commande s'il est actif.",
     ],
   },
   {
