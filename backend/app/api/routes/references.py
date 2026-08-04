@@ -10,7 +10,7 @@ from app.schemas.references import (
     ReferenceOut, VedUpdate, RisqueFournisseurUpdate, AjustementCommandeUpdate,
     FournisseurIndisponibleUpdate,
 )
-from app.services.calcul_officine import calculer_toutes_references
+from app.services.calcul_officine import calculer_toutes_references, get_or_create_parametres
 
 router = APIRouter(prefix="/references", tags=["Références"])
 
@@ -37,8 +37,20 @@ def lister_references(
     officine: Officine = Depends(get_current_officine),
     db: Session = Depends(get_db),
 ):
-    """Liste toutes les références de l'officine, triées par urgence de statut."""
-    refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
+    """
+    Liste toutes les références de l'officine, triées par urgence de statut.
+
+    Section 4ter : en mode "commande ciblée", restreinte comme le reste de
+    l'application aux références du dernier import de commande — sinon la
+    page Stock resterait la seule vue à ignorer le mode ciblé.
+    """
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+
+    conditions = [Reference.officine_id == officine.id]
+    if params.mode_commande_ciblee:
+        conditions.append(Reference.dans_dernier_import_commande.is_(True))
+    refs = db.query(Reference).filter(*conditions).all()
     refs.sort(key=lambda r: STATUT_ORDRE.get(r.statut, 4))
     return refs
 

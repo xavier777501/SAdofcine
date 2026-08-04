@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getVentesM1, getHistoriqueCommandes } from '../services/dashboard'
+import { getEtatImport } from '../services/imports'
 import { formatNb, texteRecommandation, estNeutralise } from '../utils/recommandation'
 import PageHeader from '../components/PageHeader'
 
@@ -103,12 +104,14 @@ export default function ResumeCommandes() {
   const [chargement, setChargement] = useState(true)
   const [recherche, setRecherche] = useState('')
   const [filtreStatut, setFiltreStatut] = useState('TOUS')
+  const [etatImport, setEtatImport] = useState(null)
 
   useEffect(() => {
     getVentesM1()
       .then(setVentes)
       .catch(() => setVentes([]))
       .finally(() => setChargement(false))
+    getEtatImport().then(setEtatImport).catch(() => {})
   }, [])
 
   const mois = moisPrecedentFr()
@@ -150,6 +153,15 @@ export default function ResumeCommandes() {
           </button>
         ))}
       </div>
+
+      {onglet === 'ventes' && !chargement && etatImport?.mode_commande_ciblee && (
+        <div className="rounded-xl bg-info-light dark:bg-info/10 border border-info/30 px-5 py-4">
+          <p className="text-sm font-semibold text-info">
+            Mode ciblé actif — ce résumé ne montre que les {etatImport.nb_dans_dernier_import} références de votre
+            dernier import "Préparer ma commande"
+          </p>
+        </div>
+      )}
 
       {onglet === 'historique' && <HistoriqueCommandes />}
 

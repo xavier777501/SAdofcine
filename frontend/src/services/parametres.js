@@ -44,6 +44,11 @@ export async function reinitialiserJournal(motDePasse) {
   return data
 }
 
+export async function reinitialiserInclusions(motDePasse) {
+  const { data } = await api.post('/parametres/reinitialiser-inclusions', { mot_de_passe: motDePasse }, { timeout: 120000 })
+  return data
+}
+
 export const CYCLE_OPTIONS = [
   { value: 1, label: 'Journalière (tous les jours)' },
   { value: 10, label: 'Par décade (tous les 10 jours)' },

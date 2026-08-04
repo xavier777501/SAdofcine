@@ -4,7 +4,8 @@ import FormField from '../components/FormField'
 import SubmitButton from '../components/SubmitButton'
 import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../services/auth'
-import { getParametres, updateParametres, getCircuits, updateDelaiCircuit, reinitialiserDonnees, CYCLE_OPTIONS } from '../services/parametres'
+import ReinitialisationBouton from '../components/ReinitialisationBouton'
+import { getParametres, updateParametres, getCircuits, updateDelaiCircuit, reinitialiserDonnees, reinitialiserInclusions, CYCLE_OPTIONS } from '../services/parametres'
 
 function ZoneDangereuse() {
   const [ouvert, setOuvert] = useState(false)
@@ -461,6 +462,25 @@ export default function Reglages() {
             </div>
           </div>
         )}
+
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Inclusions et exclusions manuelles</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Si une référence apparaît dans une liste alors qu'elle ne devrait pas (ou l'inverse), c'est souvent parce
+            qu'une inclusion ou exclusion a été forcée manuellement — produit par produit, ou en une fois via
+            "Commander ces références". Ce bouton annule tous ces choix forcés pour repartir sur les seules
+            suggestions automatiques du moteur. Il ne touche ni au stock, ni à l'historique, ni au mode ciblé —
+            sans risque pour vos vraies données.
+          </p>
+          <div className="mt-3">
+            <ReinitialisationBouton
+              label="Annuler toutes les inclusions/exclusions forcées…"
+              description="Remet à zéro l'arbitrage manuel (inclusion, exclusion, quantité ajustée) sur toutes vos références — le stock, l'historique et le mode ciblé restent intacts."
+              messageSucces="Inclusions et exclusions manuelles réinitialisées."
+              onConfirmer={reinitialiserInclusions}
+            />
+          </div>
+        </div>
 
         <ZoneDangereuse />
     </div>

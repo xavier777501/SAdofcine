@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { getReferences, updateVed, updateRisque, updateAjustementCommande } from '../services/references'
+import { getEtatImport } from '../services/imports'
 import { estNeutralise, MESSAGE_NEUTRALISE } from '../utils/recommandation'
 import PageHeader from '../components/PageHeader'
 
@@ -206,6 +207,7 @@ export default function Stock() {
   const [filtrePriorite, setFiltrePriorite] = useState('TOUS')
   // savingId → 'ved' | 'risque' | null
   const [saving, setSaving] = useState({})
+  const [etatImport, setEtatImport] = useState(null)
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -214,6 +216,7 @@ export default function Stock() {
       .then(data => setRefs(data))
       .catch(() => { if (!ctrl.signal.aborted) setRefs([]) })
       .finally(() => { if (!ctrl.signal.aborted) setChargement(false) })
+    getEtatImport().then(setEtatImport).catch(() => {})
     return () => ctrl.abort()
   }, [])
 
@@ -273,6 +276,18 @@ export default function Stock() {
         title="Stock"
         subtitle={chargement ? 'Chargement…' : `${refs.length} référence${refs.length > 1 ? 's' : ''} — ${refsFiltrees.length} affichée${refsFiltrees.length > 1 ? 's' : ''}`}
       />
+
+      {!chargement && etatImport?.mode_commande_ciblee && (
+        <div className="rounded-xl bg-info-light dark:bg-info/10 border border-info/30 px-5 py-4">
+          <p className="text-sm font-semibold text-info">
+            Mode ciblé actif — cette page ne montre que les {etatImport.nb_dans_dernier_import} références de votre
+            dernier import "Préparer ma commande"
+          </p>
+          <p className="mt-1 text-xs text-info/90">
+            Décochez "Limiter cette commande aux références importées" au prochain import pour revenir à tout le stock.
+          </p>
+        </div>
+      )}
 
       {/* Recherche — les filtres par colonne sont directement dans l'en-tête du tableau */}
       <div className="relative w-72">

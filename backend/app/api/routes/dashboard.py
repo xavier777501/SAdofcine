@@ -167,9 +167,9 @@ def inclure_tout_alertes_strategiques(
     """
     ids = references_qualifiees_id(officine.id, db)
     if ids:
-        db.query(Reference).filter(Reference.id.in_(ids)).update(
-            {Reference.inclusion_manuelle: "inclure"}, synchronize_session=False
-        )
+        db.query(Reference).filter(
+            Reference.officine_id == officine.id, Reference.id.in_(ids)
+        ).update({Reference.inclusion_manuelle: "inclure"}, synchronize_session=False)
         db.commit()
     return {"nb_references_incluses": len(ids)}
 
@@ -262,7 +262,16 @@ def get_en_attente_fournisseur(
     Références actuellement reléguées hors de la liste principale à cause
     d'une mise en attente fournisseur (section 6.8) — pour la sous-section
     dédiée "En attente fournisseur" de la Liste d'action.
+
+    Section 4ter : même périmètre que le tableau principal juste au-dessus —
+    en mode ciblé, ne montre que les références du dernier import de
+    commande, sinon cette sous-section resterait sur tout le catalogue alors
+    que le tableau qu'elle prolonge est déjà restreint (incohérence sur le
+    même écran).
     """
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+
     refs = (
         db.query(Reference)
         .filter(
@@ -271,6 +280,8 @@ def get_en_attente_fournisseur(
         )
         .all()
     )
+    if params.mode_commande_ciblee:
+        refs = [r for r in refs if r.dans_dernier_import_commande]
     refs = [r for r in refs if doit_etre_masquee(r) and en_attente_fournisseur(r)]
 
     lignes = []
@@ -302,8 +313,17 @@ def get_ventes_m1(
     Liste de toutes les références ayant eu au moins une vente le mois dernier
     (M-1), triée par quantité vendue décroissante — indépendamment du statut,
     pour voir ce qui tourne bien (best-sellers) et ce qui reste sur l'étagère.
+
+    Section 4ter : en mode "commande ciblée", restreinte aux références du
+    dernier import de commande, comme le reste de l'application.
     """
-    refs = db.query(Reference).filter(Reference.officine_id == officine.id).all()
+    params = get_or_create_parametres(officine.id, db)
+    db.commit()
+
+    conditions = [Reference.officine_id == officine.id]
+    if params.mode_commande_ciblee:
+        conditions.append(Reference.dans_dernier_import_commande.is_(True))
+    refs = db.query(Reference).filter(*conditions).all()
     ref_ids = [r.id for r in refs]
 
     ventes_rows = (

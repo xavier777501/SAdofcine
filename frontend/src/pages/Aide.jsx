@@ -36,7 +36,7 @@ const SECTIONS = [
     titre: 'Résumé des commandes',
     resume: "Un rappel produit par produit de vos ventes du mois dernier.",
     texte: [
-      "Contrairement à la liste d'action, ici tous les produits apparaissent — même ceux dont le stock est normal — pour que vous puissiez vérifier n'importe quelle référence.",
+      "Contrairement à la liste d'action, ici tous les produits apparaissent — même ceux dont le stock est normal — pour que vous puissiez vérifier n'importe quelle référence. Si le mode ciblé est actif, un bandeau bleu vous le rappelle : ce résumé ne recherche alors que parmi les produits de votre dernier import de commande.",
       "Vous pouvez rechercher un produit par son nom ou son code, et filtrer par statut (rupture, critique, à commander, ou normal).",
       "Un second onglet « Historique des commandes » garde une trace de chaque export PDF ou Excel que vous avez fait : la date, qui l'a fait, et si une quantité a été modifiée à la main par rapport à ce que StockAid recommandait.",
     ],
@@ -45,7 +45,7 @@ const SECTIONS = [
     titre: 'Stock',
     resume: "La fiche complète de chaque produit de votre pharmacie.",
     texte: [
-      "La liste entière de vos références, avec pour chacune : sa vitesse de rotation (rapide, lente, rare), sa priorité, ses ventes moyennes par mois, et ses seuils de commande.",
+      "La liste entière de vos références, avec pour chacune : sa vitesse de rotation (rapide, lente, rare), sa priorité, ses ventes moyennes par mois, et ses seuils de commande. Si le mode ciblé est actif, un bandeau bleu vous le rappelle : cette page ne recherche alors que parmi les produits de votre dernier import de commande.",
       "Une barre de recherche en haut permet de retrouver un produit directement par son nom ou son code.",
       "C'est ici que vous indiquez, produit par produit, s'il est vital, essentiel ou juste souhaitable pour votre pharmacie — ce réglage influence directement les recommandations.",
     ],
@@ -88,6 +88,7 @@ const SECTIONS = [
       "Le rythme auquel vous préférez passer vos commandes (tous les jours, tous les 10 jours, ou une fois par mois).",
       "Le niveau de service que vous souhaitez pour chaque catégorie de produit — plus il est élevé, moins vous risquez la rupture, mais plus vous immobilisez de stock.",
       "Un plafond de budget (en FCFA) pour vos commandes, si vous voulez limiter ce que vous dépensez à chaque fois — laissez-le vide pour ne rien limiter.",
+      "\"Annuler toutes les inclusions/exclusions forcées\" : si une référence apparaît (ou disparaît) d'une liste sans que ça vous semble logique, c'est souvent un vieux choix forcé produit par produit, ou posé en une fois via \"Commander ces références\". Ce bouton les efface tous pour repartir sur les seules suggestions automatiques du moteur — sans toucher au stock, à l'historique ni au mode ciblé.",
       "Tout en bas, une \"Zone dangereuse\" : un bouton pour effacer absolument toutes les données de l'officine et repartir de zéro (utile pour une démo ou un nouveau client) — votre compte reste actif, seules les données métier disparaissent. À utiliser avec précaution, cette action est irréversible.",
     ],
   },

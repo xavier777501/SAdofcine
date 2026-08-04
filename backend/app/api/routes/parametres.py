@@ -280,3 +280,40 @@ def reinitialiser_journal(
     db.commit()
 
     return {"message": "Historique des imports vidé."}
+
+
+@router.post("/reinitialiser-inclusions")
+def reinitialiser_inclusions(
+    data: ReinitialisationRequest,
+    officine: Officine = Depends(get_current_officine),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Annule toutes les inclusions et exclusions manuelles (section 6.7) —
+    posées produit par produit ou en masse via "Commander ces références"
+    (encart 7.0) — ainsi que les quantités ajustées à la main qui vont avec.
+    Ne touche ni au stock actuel, ni à l'historique 12 mois, ni au mode
+    ciblé : uniquement l'arbitrage manuel du pharmacien, pour repartir sur
+    les seules suggestions automatiques du moteur.
+
+    Utile en particulier quand une inclusion manuelle ancienne (posée avant
+    l'activation du mode ciblé, ou via un vieux clic sur "Commander ces
+    références") fait apparaître des références hors du périmètre ciblé
+    dans la Liste d'action — section 4ter, l'inclusion manuelle passe
+    toujours, même hors périmètre, donc seul cet arbitrage explique un tel
+    écart une fois le mode ciblé lui-même vérifié correct.
+    """
+    if not verify_password(data.mot_de_passe, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Mot de passe incorrect.")
+
+    db.query(Reference).filter(Reference.officine_id == officine.id).update(
+        {
+            Reference.inclusion_manuelle: None,
+            Reference.qte_a_commander_override: None,
+        },
+        synchronize_session=False,
+    )
+    db.commit()
+
+    return {"message": "Inclusions et exclusions manuelles réinitialisées."}
