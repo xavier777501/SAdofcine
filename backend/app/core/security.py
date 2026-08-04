@@ -47,9 +47,16 @@ def decode_access_token(token: str) -> Optional[dict]:
 def generate_reset_code() -> tuple[str, str]:
     """Génère un code de vérification à 6 chiffres. Retourne (code en clair à envoyer par email, hash à stocker en base)."""
     code = f"{secrets.randbelow(1_000_000):06d}"
-    return code, hash_reset_token(code)
+    return code, hash_token(code)
 
 
-def hash_reset_token(raw_token: str) -> str:
-    """Hash un code/token de réinitialisation (jamais stocké en clair, comme un mot de passe)."""
+def hash_token(raw_token: str) -> str:
+    """Hash un code/jeton à usage unique (reset de mot de passe) — jamais
+    stocké en clair, comme un mot de passe."""
     return hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+
+def tokens_match(raw_token: str, stored_hash: str) -> bool:
+    """Compare un jeton reçu à son hash stocké, en temps constant (évite une
+    fuite d'information par timing sur la comparaison du hash)."""
+    return secrets.compare_digest(hash_token(raw_token), stored_hash)

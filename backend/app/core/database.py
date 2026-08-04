@@ -11,6 +11,10 @@ engine = create_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
     echo=settings.DEBUG,
+    # pool_pre_ping : évite les erreurs "SSL connection has been closed
+    # unexpectedly" quand la base Postgres managée (Supabase/Neon/RDS...)
+    # coupe les connexions inactives — sans impact sur SQLite.
+    pool_pre_ping=True,
 )
 
 if settings.DATABASE_URL.startswith("sqlite"):

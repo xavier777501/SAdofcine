@@ -1,17 +1,20 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.security import (
     get_password_hash,
     create_access_token,
     verify_password,
     generate_reset_code,
-    hash_reset_token,
+    tokens_match,
 )
-from app.schemas.auth import SetupData, UserLogin, PasswordChange, Token, ForgotPasswordRequest, ResetPasswordRequest
+from app.schemas.auth import (
+    SetupData, UserLogin, PasswordChange, Token, ForgotPasswordRequest, ResetPasswordRequest,
+)
 from app.models.officine import Officine
 from app.models.user import User
 from app.models.password_reset_token import PasswordResetToken
@@ -31,15 +34,17 @@ def is_setup(db: Session = Depends(get_db)):
 
 
 @router.post("/setup", response_model=Token)
-def setup(data: SetupData, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")
+def setup(request: Request, data: SetupData, db: Session = Depends(get_db)):
     """
-    Configuration initiale — crée l'officine et le compte unique.
-    Ne fonctionne que si aucun compte n'existe encore.
+    Crée une nouvelle officine et son compte.
+    Chaque appel crée un nouveau locataire (multi-officine) — seul l'email
+    doit être unique, pas globalement bloqué après le tout premier compte.
     """
-    if db.query(User).first() is not None:
+    if db.query(User).filter(User.email == data.email).first() is not None:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="L'application est déjà configurée. Utilisez la page de connexion."
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cet email est déjà utilisé. Connectez-vous ou utilisez un autre email.",
         )
 
     officine = Officine(nom=data.officine.nom)
@@ -61,7 +66,8 @@ def setup(data: SetupData, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Identifiants incorrects")
@@ -92,7 +98,8 @@ def change_password(
 
 
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")
+def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """
     Envoie un code de vérification par email si le compte existe.
     Renvoie toujours le même message, que l'email existe ou non, pour ne pas
@@ -117,7 +124,8 @@ def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-password")
-def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/hour")
+def reset_password(request: Request, data: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Réinitialise le mot de passe à partir du code de vérification reçu par email."""
     erreur_code = HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -142,7 +150,7 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
         db.commit()
         raise erreur_code
 
-    if hash_reset_token(data.code) != reset_token.token_hash:
+    if not tokens_match(data.code, reset_token.token_hash):
         reset_token.attempts += 1
         db.commit()
         raise erreur_code

@@ -24,6 +24,7 @@ import app.models.column_mapping
 import app.models.parametre_officine
 import app.models.password_reset_token
 import app.models.delai_circuit
+import app.models.commande_validee
 
 config = context.config
 

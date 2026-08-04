@@ -53,7 +53,7 @@ export default function Setup() {
   return (
     <AuthLayout title="Créer un compte">
       <p className="-mt-3 mb-5 text-sm text-slate-500 dark:text-slate-400">
-        C'est rapide et simple — cette étape n'apparaît qu'une seule fois.
+        C'est rapide et simple.
       </p>
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <ErrorBanner message={error} />

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import ErrorBanner from '../components/ErrorBanner'
 import SubmitButton from '../components/SubmitButton'
-import { login, checkIsSetup, getErrorMessage } from '../services/auth'
+import { login, getErrorMessage } from '../services/auth'
 import { marquerDirection } from '../services/pageTransition'
 
 const inputClasses =
@@ -16,38 +16,25 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [notConfigured, setNotConfigured] = useState(false)
   const [loading, setLoading] = useState(false)
   const [afficherMotDePasse, setAfficherMotDePasse] = useState(false)
-
-  useEffect(() => {
-    checkIsSetup()
-      .then(({ configured }) => setNotConfigured(!configured))
-      .catch(() => {})
-  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    setNotConfigured(false)
     setLoading(true)
     try {
       await login({ email, password })
       marquerDirection('/login', '/bienvenue')
       navigate('/bienvenue', { replace: true, viewTransition: true })
     } catch (err) {
-      const { configured } = await checkIsSetup().catch(() => ({ configured: true }))
-      if (!configured) {
-        setNotConfigured(true)
-      } else {
-        setError(getErrorMessage(err, 'Mot de passe incorrect ou email inconnu.'))
-      }
+      setError(getErrorMessage(err, 'Mot de passe incorrect ou email inconnu.'))
     } finally {
       setLoading(false)
     }
   }
 
-  const footer = notConfigured && (
+  const footer = (
     <>
       <hr className="my-6 border-slate-200 dark:border-slate-700" />
       <Link

@@ -21,6 +21,14 @@ assert "test_sad_officine" in settings.DATABASE_URL, (
     f"DATABASE_URL={settings.DATABASE_URL}"
 )
 
+# Le TestClient (Starlette) n'a pas d'IP distincte par test — tous les appels
+# partagent la même clé de rate limiting (get_remote_address). Désactivé ici
+# uniquement pour la suite de tests ; le comportement réel en prod (voir
+# app/core/limiter.py) n'est pas affecté.
+from app.core.limiter import limiter
+
+limiter.enabled = False
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _nettoyer_base_de_test():

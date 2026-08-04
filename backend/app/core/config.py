@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # Sécurité
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24h
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 jours — poste de comptoir partagé, reste connecté
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
 
     # Envoi d'email (réinitialisation de mot de passe)

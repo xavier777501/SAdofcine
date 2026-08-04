@@ -5,8 +5,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.core.limiter import limiter
 from app.api.routes.auth import router as auth_router
 from app.api.routes.imports import router as imports_router
 from app.api.routes.calcul import router as calcul_router
@@ -32,9 +36,20 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# En production (DEBUG=false), seul le vrai domaine du frontend est autorisé —
+# localhost n'est ajouté qu'en dev pour ne pas élargir inutilement la surface
+# d'attaque une fois en ligne.
+_allowed_origins = [settings.FRONTEND_URL]
+if settings.DEBUG and "http://localhost:5173" not in _allowed_origins:
+    _allowed_origins.append("http://localhost:5173")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,8 +57,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup():
-    # Crée les tables automatiquement au démarrage (SQLite local, pas besoin d'alembic upgrade)
-    Base.metadata.create_all(bind=engine)
+    # SQLite (dev/desktop) : crée les tables automatiquement, pas besoin d'alembic upgrade.
+    # Postgres (SaaS) : le schéma est géré exclusivement par les migrations Alembic
+    # (`alembic upgrade head` au déploiement) — create_all() masquerait un oubli de migration.
+    if settings.DATABASE_URL.startswith("sqlite"):
+        Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(imports_router, prefix=settings.API_V1_PREFIX)

@@ -9,11 +9,13 @@ email-validator==2.2.0
 # === Base de données ===
 sqlalchemy==2.0.35
 alembic==1.13.2
+psycopg2-binary==2.9.9   # driver Postgres (production/SaaS) — SQLite reste utilisé en dev/desktop
 
 # === Sécurité / Auth ===
 bcrypt==4.2.0
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.12
+slowapi==0.1.10   # rate limiting sur les routes d'authentification (anti brute-force)
 
 # === Calcul & Parsing (moteur SAD) ===
 pandas==2.2.3
