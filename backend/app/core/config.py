@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Optional
 
 class Settings(BaseSettings):
@@ -24,6 +25,15 @@ class Settings(BaseSettings):
 
     # Base de données
     DATABASE_URL: str
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normaliser_schema_postgres(cls, v: str) -> str:
+        # Railway/Heroku fournissent souvent "postgres://" — SQLAlchemy 2.0
+        # avec psycopg2 exige explicitement "postgresql://".
+        if v.startswith("postgres://"):
+            return "postgresql://" + v[len("postgres://"):]
+        return v
 
     # CORS (Frontend)
     FRONTEND_URL: str = "http://localhost:5173"

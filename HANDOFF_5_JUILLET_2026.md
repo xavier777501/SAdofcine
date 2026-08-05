@@ -110,7 +110,7 @@ MAX_UPLOAD_SIZE_MB=50
 cd backend
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirement.txt
+pip install -r requirements.txt
 cd ..
 ```
 
